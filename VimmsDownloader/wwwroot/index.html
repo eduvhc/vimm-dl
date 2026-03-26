@@ -54,6 +54,10 @@
         /* Errors */
         .errs{display:none;padding:6px 20px;background:rgba(248,113,113,0.05);border-bottom:1px solid rgba(248,113,113,0.15);font-size:11px;color:var(--red);font-family:var(--mono);max-height:50px;overflow-y:auto;flex-shrink:0}
         .errs.show{display:block}
+        .update-bar{display:none;padding:8px 20px;background:rgba(94,234,212,0.06);border-bottom:1px solid rgba(94,234,212,0.15);font-size:12px;color:var(--accent);flex-shrink:0;align-items:center;gap:10px}
+        .update-bar.show{display:flex}
+        .update-bar a{color:var(--accent);font-weight:600;text-decoration:underline}
+        .update-bar .dismiss{background:none;border:none;color:var(--text4);cursor:pointer;font-size:14px;margin-left:auto;font-family:var(--sans)}
 
         /* Section headers */
         .sec{display:flex;align-items:center;justify-content:space-between;padding:6px 20px;flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text4)}
@@ -150,6 +154,7 @@
     <button class="cb cb-clr" id="btn-clear">Clear</button>
 </div>
 
+<div class="update-bar" id="update-bar"></div>
 <div class="errs" id="err-box"></div>
 
 <div class="sec">Queue <span class="cnt" id="queue-count">0</span></div>
@@ -314,9 +319,17 @@ $('btn-pause').onclick=()=>{hub.invoke('PauseDownload');paused=true;running=fals
 $('btn-stop').onclick=()=>{hub.invoke('StopDownload');paused=false;running=false;activeUrl=null;activeDlInfo=null;updateBtns();renderQueue();document.title='VIMM // DL'};
 $('btn-clear').onclick=async()=>{await fetch('/api/queue',{method:'DELETE'});loadData()};
 window.rmItem=async id=>{await fetch(`/api/queue/${id}`,{method:'DELETE'});loadData()};
-window.playItem=id=>{hub.invoke('StartSpecific',activePath,id);paused=false;running=true;updateBtns()};
-window.pauseItem=()=>{hub.invoke('PauseDownload');paused=true;running=false;updateBtns();renderQueue()};
+window.playItem=async id=>{hub.invoke('StartSpecific',activePath,id);paused=false;running=true;updateBtns();
+    // Refresh partials so the previously downloading item shows its progress bar
+    await refreshPartials();renderQueue()};
+window.pauseItem=async()=>{hub.invoke('PauseDownload');paused=true;running=false;updateBtns();
+    // Small delay for file to flush, then refresh partials
+    setTimeout(async()=>{await refreshPartials();renderQueue()},1000)};
 window.resumeItem=()=>{hub.invoke('StartDownload',activePath);paused=false;running=true;updateBtns();renderQueue()};
+
+async function refreshPartials(){
+    try{const p=await(await fetch('/api/partials')).json();partialsCache={};(p.files||[]).forEach(f=>{partialsCache[f.name]=f})}catch{}
+}
 window.moveItem=async(id,dir)=>{await fetch('/api/queue/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,direction:dir})});loadData()};
 $('urls').addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter')$('btn-add').click()});
 
@@ -353,7 +366,18 @@ hub.on('Done',()=>{running=false;paused=false;activeUrl=null;activeDlInfo=null;u
 hub.onreconnecting(()=>{$('conn-dot').className='dot warn'});
 hub.onreconnected(()=>{$('conn-dot').className='dot on';loadConfig(true);restoreStatus();loadData()});
 hub.onclose(()=>{$('conn-dot').className='dot off'});
-hub.start().then(()=>{$('conn-dot').className='dot on';loadConfig();loadData();restoreStatus()});
+hub.start().then(()=>{$('conn-dot').className='dot on';loadConfig();loadData();restoreStatus();checkForUpdate()});
+
+async function checkForUpdate(){
+    try{
+        const v=await(await fetch('/api/version')).json();
+        if(v.hasUpdate){
+            const el=$('update-bar');
+            el.classList.add('show');
+            el.innerHTML=`New version <strong>${esc(v.latest)}</strong> available &mdash; <a href="${esc(v.url)}" target="_blank">changelog</a><button class="dismiss" onclick="this.parentElement.classList.remove('show')">&times;</button>`;
+        }
+    }catch{}
+}
 </script>
 </body>
 </html>

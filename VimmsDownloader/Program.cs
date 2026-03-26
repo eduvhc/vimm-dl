@@ -105,6 +105,35 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapHub<DownloadHub>("/hub");
 
+var currentVersion = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+
+app.MapGet("/api/version", async (IHttpClientFactory httpFactory) =>
+{
+    string? latest = null;
+    string? url = null;
+    string? changelog = null;
+
+    try
+    {
+        var http = httpFactory.CreateClient();
+        http.DefaultRequestHeaders.Add("User-Agent", "vimm-dl");
+        var resp = await http.GetAsync("https://api.github.com/repos/eduvhc/vimm-dl/releases/latest");
+        if (resp.IsSuccessStatusCode)
+        {
+            var json = await resp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+            latest = json.GetProperty("tag_name").GetString()?.TrimStart('v');
+            url = json.GetProperty("html_url").GetString();
+            changelog = json.GetProperty("body").GetString();
+        }
+    }
+    catch { }
+
+    var hasUpdate = latest != null && latest != currentVersion &&
+        Version.TryParse(latest, out var lv) && Version.TryParse(currentVersion, out var cv) && lv > cv;
+
+    return new { current = currentVersion, latest, hasUpdate, url, changelog };
+});
+
 // --- Data APIs ---
 
 app.MapGet("/api/data", () =>
@@ -195,10 +224,13 @@ app.MapGet("/api/check-exists", (string filename, DownloadQueue queue) =>
 
 app.MapGet("/api/partials", (DownloadQueue queue) =>
 {
-    var dlPath = queue.ActiveDownloadPath
+    var basePath = queue.ActiveDownloadPath
         ?? app.Configuration.GetValue<string>("DownloadPath");
-    if (string.IsNullOrWhiteSpace(dlPath))
-        dlPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+    if (string.IsNullOrWhiteSpace(basePath))
+        basePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+
+    // ActiveDownloadPath already points to downloading/, otherwise add it
+    var dlPath = basePath.EndsWith("downloading") ? basePath : Path.Combine(basePath, "downloading");
 
     if (!Directory.Exists(dlPath))
         return Results.Ok(new { files = new List<object>() });
