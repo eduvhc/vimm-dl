@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="VimmsDownloader/VimmsDownloader.csproj" />
+  <Project Path="MockServer/MockServer.csproj" />
+</Solution>

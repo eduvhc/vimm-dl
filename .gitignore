@@ -1,0 +1,30 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+## SQLite
+*.db
+*.db-wal
+*.db-shm
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+## OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+## Downloads (don't commit test downloads)
+downloading/
+completed/
