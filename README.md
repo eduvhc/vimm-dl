@@ -26,32 +26,24 @@ A lightweight, queue-based download manager for [Vimm's Lair](https://vimm.net),
 | Downloads | HttpClient with browser-mimicking headers |
 | Frontend | Vanilla JS, single `index.html` |
 
-## Quick Start (Docker)
+## Quick Start
 
+**Linux / macOS:**
 ```bash
-docker run -d \
-  -p 5000:5000 \
-  -v vimm-data:/app/data \
-  -v ~/downloads:/downloads \
-  --name vimm-dl \
-  ghcr.io/eduvhc/vimm-dl:latest
+docker run -d -p 5000:5000 -v vimm-data:/app/data -v ~/downloads:/downloads --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 ```
 
-Open `http://localhost:5000`
-
-That's it. Database persists in `vimm-data` volume, files download to `~/downloads/downloading/` and move to `~/downloads/completed/` when done.
-
-## Quick Start (From Source)
-
-Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download)
-
-```bash
-git clone https://github.com/eduvhc/VimmsDownloader.git
-cd VimmsDownloader/VimmsDownloader
-dotnet run
+**Windows (PowerShell):**
+```powershell
+docker run -d -p 5000:5000 -v vimm-data:/app/data -v ${HOME}\Downloads:/downloads --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 ```
 
-Open `http://localhost:5031`
+**Windows (CMD):**
+```cmd
+docker run -d -p 5000:5000 -v vimm-data:/app/data -v %USERPROFILE%\Downloads:/downloads --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
+```
+
+Open **http://localhost:5000** and paste your URLs.
 
 ## Usage
 
