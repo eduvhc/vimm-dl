@@ -45,6 +45,33 @@ docker run -d -p 5000:5000 -v vimm-data:/app/data -v %USERPROFILE%\Downloads:/do
 
 Open **http://localhost:5000** and paste your URLs.
 
+## Updating
+
+**Linux / macOS:**
+```bash
+docker stop vimm-dl && docker rm vimm-dl
+docker pull ghcr.io/eduvhc/vimm-dl:latest
+docker run -d -p 5000:5000 -v vimm-data:/app/data -v ~/downloads:/downloads --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
+```
+
+**Windows (PowerShell):**
+```powershell
+docker stop vimm-dl; docker rm vimm-dl
+docker pull ghcr.io/eduvhc/vimm-dl:latest
+docker run -d -p 5000:5000 -v vimm-data:/app/data -v ${HOME}\Downloads:/downloads --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
+```
+
+**Windows (CMD):**
+```cmd
+docker stop vimm-dl & docker rm vimm-dl
+docker pull ghcr.io/eduvhc/vimm-dl:latest
+docker run -d -p 5000:5000 -v vimm-data:/app/data -v %USERPROFILE%\Downloads:/downloads --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
+```
+
+Your queue, metadata cache, and partial downloads are preserved across updates. Active downloads auto-resume on restart.
+
+The app checks for new versions on startup and shows a banner with a link to the changelog.
+
 ## Usage
 
 1. Paste vault URLs into the input bar -- any format works:
