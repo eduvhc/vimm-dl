@@ -134,6 +134,42 @@ public class Ps3ConversionPipeline
         AddToConvertedList(filename);
     }
 
+    /// <summary>
+    /// Renames a .dec.iso file to .iso (strips the .dec suffix).
+    /// Used for PS3 downloads with format > 0 (alt/dec ISO format).
+    /// </summary>
+    public async Task RenameDecIsoAsync(string filePath)
+    {
+        var filename = Path.GetFileName(filePath);
+        if (!filename.EndsWith(".dec.iso", StringComparison.OrdinalIgnoreCase))
+        {
+            _log.LogWarning("RenameDecIso called on non-.dec.iso file: {File}", filename);
+            return;
+        }
+
+        var newName = filename[..^".dec.iso".Length] + ".iso";
+        var dir = Path.GetDirectoryName(filePath)!;
+        var newPath = Path.Combine(dir, newName);
+
+        await EmitStatus(filename, "converting", "Renaming .dec.iso to .iso...");
+
+        try
+        {
+            if (File.Exists(newPath))
+                File.Delete(newPath);
+            File.Move(filePath, newPath);
+
+            await EmitStatus(filename, "done", $"ISO ready: {newName}", newName);
+            AddToConvertedList(filename);
+            _log.LogInformation("Renamed {Old} -> {New}", filename, newName);
+        }
+        catch (Exception ex)
+        {
+            await EmitStatus(filename, "error", $"Rename failed: {ex.Message}");
+            _log.LogError(ex, "Failed to rename {File}", filename);
+        }
+    }
+
     public bool Enqueue(string zipPath, string completedDir, string tempBaseDir, bool force = false)
     {
         var key = Path.GetFileName(zipPath);

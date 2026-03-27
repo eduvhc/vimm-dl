@@ -2,17 +2,29 @@
 
 ## Project Overview
 
-Vimm's Lair download queue manager with PS3 ISO conversion. Main project split into SRP files under `VimmsDownloader/`, UI in `wwwroot/index.html`. Two class libraries: `Ps3IsoTools` (JB→ISO conversion) and `ZipExtractor` (7z wrapper). Mock server in `MockServer/` for testing. GitHub user: eduvhc. Target platform: Linux (Docker + bare metal).
+Vimm's Lair download queue manager with PS3 ISO conversion and sync. Modular architecture under `Modules/`. Host project `VimmsDownloader/` with UI in `wwwroot/index.html`. Mock server in `MockServer/` for testing. GitHub user: eduvhc. Target platform: Linux (Docker + bare metal).
 
 ## Architecture
 
-- **SRP file structure** - `Program.cs` (startup/DI only), `Models.cs` (records + PathHelpers), `AppJsonContext.cs` (JSON source gen), `QueueRepository.cs`, `DownloadHub.cs`, `DownloadQueue.cs`, `Ps3ConversionPipeline.cs`, and `Endpoints/` folder with 5 endpoint files (`FileEndpoints`, `DownloadEndpoints`, `MetadataEndpoints`, `ConfigEndpoints`, `Ps3Endpoints`).
-- **AOT-ready** - `PublishAot=true`, no Dapper (raw ADO.NET via `SqliteCommand`/`SqliteDataReader`), JSON source generator (`AppJsonContext`), all API responses use named record types. SignalR configured with `AddJsonProtocol` using same source-generated context. Both class libraries marked `IsAotCompatible`.
-- **QueueRepository** - singleton, encapsulates all SQLite operations. Uses `$param` style parameters. `Init()` handles DB creation, WAL mode, idempotent migrations (`CREATE TABLE IF NOT EXISTS` + `try/catch ALTER TABLE ADD COLUMN`).
-- **DownloadQueue** - singleton registered via DI. Uses `IHubContext<DownloadHub>` to broadcast to all clients (decoupled from any specific SignalR connection). Downloads survive browser close. After PS3 JB Folder downloads complete, enqueues to `Ps3ConversionPipeline` (non-blocking).
-- **Ps3ConversionPipeline** - singleton, two-phase pipeline with configurable parallelism (`Ps3ConvertParallelism`, default 3). Uses two `Channel<T>` queues: extraction (7z) → conversion (makeps3iso). N extract workers + N convert workers run concurrently, competing for their respective channel. `ConcurrentDictionary` tracks per-file status and prevents double-queueing active items via atomic `AddOrUpdate`.
-- **QueueLock.Sync** - static lock object used by queue mutations (move, delete, complete) to prevent race conditions. Both the move API and download completion use this lock. All multi-step DB ops wrapped in transactions.
-- **Three-folder pattern** - `{path}/downloading/` for active downloads, `{path}/completed/` for done files + ISOs, `{path}/ps3_temp/{guid}/` for extraction scratch space. Auto-created as needed.
+### Modules (under `Modules/`)
+
+All modules follow the convention in `Modules/MODULE_GUIDE.md`. Each module is a standalone class library with zero web dependencies, communicating with the host via a typed bridge (`IModuleBridge<TEvent>`).
+
+- **Module.Core** - `IModuleBridge<TEvent>` interface. Every module references this.
+- **Module.Core.Testing** - Shared test infrastructure: `FakeBridge<T>`, `TempDirectory`, `ToolsContainer` (Testcontainers with `ghcr.io/eduvhc/vimm-dl-tools`).
+- **Module.Extractor** - 7z wrapper (`ZipExtract.QuickCheckAsync`, `ExtractAsync` with progress callback). Pure static utility, no bridge needed.
+- **Module.Ps3Iso** - PS3 ISO pipeline: `ParamSfo` (PARAM.SFO binary parser), `Ps3IsoConverter` (makeps3iso + patchps3iso), `Ps3ConversionPipeline` (two-phase extract→convert with `IPs3IsoBridge`). Also handles `.dec.iso` → `.iso` rename.
+- **Module.Sync** - Compares ISOs between `completed/` and an external drive. Copy with progress, disk info, space checks via `ISyncBridge`.
+
+### Host (VimmsDownloader/)
+
+- **SRP file structure** - `Program.cs` (startup/DI only), `Models.cs` (records + PathHelpers), `AppJsonContext.cs` (JSON source gen), `QueueRepository.cs`, `DownloadHub.cs`, `DownloadQueue.cs`, and `Endpoints/` folder with 6 endpoint files (`FileEndpoints`, `DownloadEndpoints`, `MetadataEndpoints`, `ConfigEndpoints`, `Ps3Endpoints`, `SyncEndpoints`).
+- **SignalR bridges** - `SignalRPs3IsoBridge.cs` and `SignalRSyncBridge.cs` route module events to SignalR. Events are serialized via `JsonSerializer.SerializeToElement` with `AppJsonContext` to ensure correct camelCase property names under AOT.
+- **AOT-ready** - `PublishAot=true`, raw ADO.NET via `SqliteCommand`/`SqliteDataReader`, JSON source generator (`AppJsonContext`), all API responses use named record types. SignalR configured with `AddJsonProtocol` using same source-generated context. All modules marked `IsAotCompatible`.
+- **QueueRepository** - singleton, encapsulates all SQLite operations. Uses `$param` style parameters. `Init()` handles DB creation, WAL mode, idempotent migrations.
+- **DownloadQueue** - singleton. Uses `IHubContext<DownloadHub>` for SignalR broadcasts. Downloads survive browser close. After completion, routes PS3 downloads to the appropriate pipeline based on format.
+- **QueueLock.Sync** - static lock object used by queue mutations (move, delete, complete). All multi-step DB ops wrapped in transactions.
+- **Three-folder pattern** - `{path}/downloading/` for active downloads, `{path}/completed/` for done files + ISOs, `{path}/ps3_temp/{guid}/` for extraction scratch space.
 
 ## Database
 
@@ -29,16 +41,15 @@ WAL mode set on init. Idempotent migrations: tables created with `IF NOT EXISTS`
 2. Fetches vault page HTML, extracts `mediaId` from hidden input via regex
 3. Resolves download server URL (tries: form action attr, JS `.action=`, `dl*.vimm.net` in source, fallback `https://dl3.vimm.net/`)
 4. First GET request gets filename from Content-Disposition + total size from Content-Length
-5. Checks `downloading/` for existing partial file:
-   - `existingBytes >= totalBytes` → file already complete, skip download, move to completed (crash recovery)
-   - `existingBytes > 0 && < totalBytes` → send Range header, resume
-   - `existingBytes == 0` → fresh download
+5. Checks `downloading/` for existing partial file (crash recovery / resume)
 6. Streams to FileStream with 80KB buffer, reports progress every 2 seconds
 7. On completion: lock → File.Move to completed → BEGIN TRANSACTION → DELETE from queue + INSERT into completed → COMMIT (rollback moves file back on failure)
-8. If PS3 JB Folder (format=0, platform="PlayStation 3"): enqueues zip to `Ps3ConversionPipeline` (non-blocking)
+8. Post-download PS3 routing:
+   - **format=0** (JB Folder) + platform="PlayStation 3" → enqueue to `Ps3ConversionPipeline` (extract + convert)
+   - **format>0** + filename ends with `.dec.iso` + platform="PlayStation 3" → `RenameDecIsoAsync` (strip `.dec` suffix)
 9. Random 5-30s delay, then next item
 
-## PS3 ISO Conversion Pipeline
+## PS3 ISO Conversion Pipeline (Module.Ps3Iso)
 
 Two-phase pipeline with N workers per phase (default N=3, configurable via `Ps3ConvertParallelism`):
 
@@ -57,129 +68,85 @@ Two-phase pipeline with N workers per phase (default N=3, configurable via `Ps3C
 4. Place ISO in `completed/`
 5. Delete temp extraction folder
 
+**Dec ISO rename** - `RenameDecIsoAsync(filePath)`: strips `.dec` from `.dec.iso` files. Emits converting→done status events, adds to converted list.
+
 **Crash recovery** (runs on startup via `CleanupOrphans`):
 - Checks each `ps3_temp/` subdir for `.extraction_complete` marker
 - If marker found → extraction was complete, enqueues directly to convert queue (skips re-extraction)
 - If no marker → orphaned incomplete extraction, deletes the dir
 - Deletes `temp_*.iso` files in `completed/` (orphaned partial ISOs)
 
-**Edge cases handled**:
-- Archive corrupted/truncated → `7z l` header check fails fast before extraction starts
-- Zip deleted between queue and extract → `File.Exists` check, error status
-- Disk full → pre-check: zip size * 3 vs available space, skips with error
-- Same zip queued twice → atomic `AddOrUpdate` blocks active items (queued/extracting/converting)
-- Non-PS3 zip → `FindJbFolder` returns null, marked "skipped"
-- Done/error/skipped items can be re-queued (only active phases blocked)
+## Sync Module (Module.Sync)
 
-**UI section** (between Queue and Completed, hidden when empty):
-- Color-coded phase badges: queued (gray), extracting (amber), converting (blue), done (green), error (red), skipped (gray)
-- Retry button on error/skipped items
-- Dismiss button on done/error/skipped items
-- "Convert All" button triggers `POST /api/convert-ps3` (scans DB for PS3 completed zips)
-- "Clear Done" button removes finished items from list
-- Real-time updates via `ConvertStatus` SignalR event
-- Status restored on connect/reconnect via `GET /api/convert-ps3/status`
+Compares `.iso` files between `completed/` and a configurable target path (e.g. `H:\PS3ISO`).
+
+- `Compare()` returns new (source only), synced (both), target-only lists with disk info for both drives
+- `CopyFileAsync()` streams file with progress events, pre-flight checks (path accessible, free space, source exists)
+- `CopyAllNewAsync()` copies all new files with shared CancellationTokenSource
+- Handles edge cases: disk disconnection, drive not ready, mid-copy failures, partial file cleanup
+- UI section with path input, disk info cards (ISO count, free/total space, usage bar), file list with copy buttons
+
+## Format Selection
+
+- `.dec.iso` format is auto-selected when metadata loads and a `.dec.iso` option exists (`autoSelectDecIso` in UI)
+- Format can be changed via dropdown before download starts
+- format=0 → JB Folder (default for non-PS3 or when no .dec.iso available), format>0 → alt format with `&alt={format}` URL param
 
 ## Vimm's Lair HTML Structure
 
 - **Title**: `<title>The Vault: Game Name (System)</title>` - strip "The Vault: " prefix, remove trailing `(System)`
 - **Platform**: `<div class="sectionTitle">PlayStation 3</div>` (NOT `<h2>`)
 - **MediaId**: `<input type="hidden" name="mediaId" value="83789">` - can be `name` before or after `value`
-- **Format**: `<select id="dl_format">` with `<option value="0" title="JailBreak folder">JB Folder</option>` etc. When format=0, alt input is disabled (omit from URL). When format>0, append `&alt={format}` to download URL. Format options only exist on certain platforms (e.g. PS3).
+- **Format**: `<select id="dl_format">` with `<option value="0" title="JailBreak folder">JB Folder</option>` etc. When format=0, alt input is disabled (omit from URL). When format>0, append `&alt={format}` to download URL.
 - **Form action**: `<form id="dl_form" action="https://dl3.vimm.net/">` - can be absolute, protocol-relative, or relative
-- **Size**: regex `([\d,.]+)\s*(GB|MB|KB)` anywhere in page (appears near download button)
-- **Download**: GET `{form_action}/?mediaId={id}` (format=0, no alt) or `{form_action}/?mediaId={id}&alt={format}` (format>0) - the `submitDL()` JS switches form from POST to GET
+- **Size**: regex `([\d,.]+)\s*(GB|MB|KB)` anywhere in page
+- **Download**: GET `{form_action}/?mediaId={id}` (format=0) or `{form_action}/?mediaId={id}&alt={format}` (format>0)
 
-Always `HtmlDecode` titles and platforms - Vimm's uses HTML entities (`&#039;` for apostrophes).
+Always `HtmlDecode` titles and platforms - Vimm's uses HTML entities.
 
 ## HttpClient Configuration
 
-Named client `"vimms"` with:
-- CookieContainer (persists session cookies)
-- Auto decompression (gzip/deflate/brotli)
-- Auto redirect (up to 10 hops)
-- Full Chrome 131 headers: User-Agent, Accept, Accept-Language, Accept-Encoding, Cache-Control, Pragma, Sec-CH-UA, Sec-CH-UA-Mobile, Sec-CH-UA-Platform, Sec-Fetch-Dest/Mode/Site/User, Upgrade-Insecure-Requests, DNT
-- Referrer set to `https://vimm.net/`
-- Download requests override Referrer to the vault page URL and set `Sec-Fetch-Site: cross-site`
-- Timeout: 60 minutes
+Named client `"vimms"` with CookieContainer, auto decompression, auto redirect (10 hops), full Chrome 131 headers, Referrer `https://vimm.net/`, 60-min timeout.
 
 ## Race Conditions Handled
 
-- **Reorder during completion** - both wrapped in `lock(QueueLock.Sync)`, reorder uses SQLite transaction for 3-step ID swap
+- **Reorder during completion** - both wrapped in `lock(QueueLock.Sync)`, reorder uses SQLite transaction
 - **Delete during completion** - same lock
-- **App killed after download but before File.Move** - on restart, detects `existingBytes >= totalBytes` and recovers immediately
-- **App killed after File.Move but before DB update** - transaction rollback moves file back to downloading/. On restart, resumes normally.
-- **App killed mid-reorder** - transaction rolls back, IDs stay consistent
+- **App killed after download but before File.Move** - on restart, detects `existingBytes >= totalBytes` and recovers
+- **App killed after File.Move but before DB update** - transaction rollback moves file back
 - **App killed during PS3 extraction/conversion** - orphaned temp dirs + temp ISOs cleaned on next startup
 - **Duplicate conversion enqueue** - atomic `ConcurrentDictionary.AddOrUpdate` prevents double-processing
 
 ## URL Parsing
 
-Input parsing: `t.replace(/(https?:\/\/)/gi, '\n$1')` splits concatenated URLs, then `t.match(/https?:\/\/[^\s,;|"'<>]+/gi)` extracts all. Deduped with `Set`. Handles:
-- One per line
-- Space/comma/semicolon separated
-- Concatenated without separator (`https://...https://...`)
-- Mixed with arbitrary text
-
-Adding URLs auto-starts the queue if not already running.
+`t.replace(/(https?:\/\/)/gi, '\n$1')` splits concatenated URLs, then regex extracts all. Deduped with `Set`. Adding URLs auto-starts the queue if not running.
 
 ## UI
 
 - Single `index.html`, no build step, no framework
 - Fonts: Inter (UI) + JetBrains Mono (data/mono)
 - SignalR client from CDN
-- Two-section layout: **Active** (queue items + extracting/converting) and **History** (completed with inline ISO status)
-- Platform icons use CSS `mask-image`: SVG has `fill="currentColor"`, div with mask + colored background (blue=PlayStation, red=Nintendo, green=Xbox, blue=Sega)
-- Active items: download shown inline with progress bar, per-item buttons (play/pause/resume/reorder/remove)
-- History items show: game title, platform, archive row (filename + size + exists check), ISO row (PS3 only: filename + size or conversion status), completion timestamp
-- Format dropdown on queue items with multiple formats (e.g. PS3: JB Folder / .dec.iso)
-- Convert All button for bulk PS3 ISO conversion
+- Three-section layout: **Active** (queue + converting), **History** (completed with ISO status), **Sync** (compare + copy to external drive)
+- Platform icons via CSS `mask-image`
+- Format dropdown auto-selects `.dec.iso` when available
+- Sync section: path input, disk info cards (source + target), compare/copy buttons
 - Page title updates with progress: `51.23% — Skate 3`
-- `loadData()` debounced and fetches parallelized with `Promise.all`
-- `prefers-reduced-motion` respected, tabular numerics on all data columns
-- `:focus-visible` on all interactive elements
 
-## Ps3IsoTools (class library)
+## Testing
 
-Converts PS3 JB folders to ISO. Wraps the C tools `makeps3iso` and `patchps3iso` from [bucanero/ps3iso-utils](https://github.com/bucanero/ps3iso-utils). Marked `IsAotCompatible`. Two files:
-
-- **ParamSfo.cs** - parses PS3 `PARAM.SFO` binary format. Extracts `TITLE` and `TITLE_ID`. Format: header (0x14 bytes) → index table (16 bytes per entry with key offset, data len, data offset) → key table (null-terminated strings) → data table (values). Title ID formatted as `XXXX-XXXXX` (dash inserted after 4 chars if missing).
-- **Ps3IsoConverter.cs** - orchestrates folder → ISO conversion:
-  1. Parses PARAM.SFO for game name + ID
-  2. Runs `makeps3iso -p0 <folder> <temp.iso>` (PS3_UPDATE excluded by C tool's `NOPS3_UPDATE` define)
-  3. Runs `patchps3iso -p0 <temp.iso> <version>` (patches firmware only if game requires higher version)
-  4. Renames to `[Game-Name] - [Game-ID].iso`
-  5. Cleans up temp ISO on failure
-
-**ConversionOptions** defaults (matching PS3 ISO Tools V2.2 screenshot):
-- `PatchFirmware=true`, `FirmwareVersion="3.55"`, `SplitForFat32=false`, `RenameToGameNameId=true`, `DeleteSourceAfter=false`
-- `Makeps3isoPath="makeps3iso"`, `Patchps3isoPath="patchps3iso"` (in PATH inside Docker)
-
-**FindJbFolder(root)** - static helper to locate JB folder in an extracted directory. Checks root, one level deep, and two levels deep for `PS3_GAME/PARAM.SFO`. Handles Vimm's nested zip structure (e.g. `GameName/GameName/PS3_GAME/`).
-
-## ZipExtractor (class library)
-
-Single static method: `ZipExtract.ExtractAsync(zipPath, outputDir, ct)`. Shells out to `7z` (`7z x <zip> -o<dir> -y`). Returns `(bool Success, string? Error)`. Requires `7z` in PATH (installed in Docker via `apt-get install 7zip`). Marked `IsAotCompatible`.
+200 tests across 3 modules (87 Sync + 88 Ps3Iso + 25 Extractor). All integration tests use real file I/O. Container tests use `ghcr.io/eduvhc/vimm-dl-tools` via Testcontainers (7z + makeps3iso + patchps3iso). See `Modules/MODULE_GUIDE.md` for conventions.
 
 ## Docker
 
-- Single `Dockerfile` at repo root. Three-stage build:
-  1. **ps3tools** (Alpine) - clones `bucanero/ps3iso-utils`, compiles `makeps3iso` + `patchps3iso` with `gcc -static`. Cached unless Dockerfile changes.
-  2. **build** (`sdk:10.0-noble-aot`) - restores and publishes all projects (VimmsDownloader + Ps3IsoTools + ZipExtractor) as AOT linux-x64.
-  3. **runtime** (`runtime-deps:10.0-noble`) - installs `7zip`, copies static ps3 tool binaries + .NET app. Non-chiseled image because we need to exec external binaries (7z, makeps3iso, patchps3iso).
+- Main app: `Dockerfile` at repo root. Three-stage build (ps3tools → .NET AOT → runtime). References `Modules/` paths.
+- Tools image: `Modules/Module.Core.Testing/Dockerfile.tools`. Published to `ghcr.io/eduvhc/vimm-dl-tools:latest` via `.github/workflows/tools-image.yml`.
 - Two volumes: `/app/data` (SQLite DB), `/downloads` (downloading/ + completed/ + ps3_temp/)
-- DB path set via env `ConnectionStrings__Default="Data Source=/app/data/queue.db"`
-- Download path via env `DownloadPath=/downloads`
 - Port 5000
-- Use named volume for `/app/data` (SQLite WAL + bind mounts on Windows/WSL2 can conflict)
-- Use bind mount for `/downloads` so host can access files
-- `.dockerignore` excludes bin/obj/db/.git
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/publish.yml`):
-- Triggers on `v*` tags or manual dispatch
-- Builds + pushes Native AOT Docker image to ghcr.io/eduvhc/vimm-dl
+- `.github/workflows/publish.yml` - builds + pushes app Docker image on `v*` tags
+- `.github/workflows/tools-image.yml` - builds + pushes tools image on `Dockerfile.tools` changes
 
 ## User Preferences
 

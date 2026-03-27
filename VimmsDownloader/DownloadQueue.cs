@@ -298,14 +298,20 @@ class DownloadQueue
                     await EmitCompleted(new CompletedEvent(url, filename, completedFilePath));
                     _log.LogInformation("Downloaded {Filename} -> completed/", filename);
 
-                    // PS3 JB Folder → ISO conversion (async pipeline, doesn't block next download)
-                    if (format == 0)
+                    // PS3 post-download processing (async, doesn't block next download)
+                    var dlMeta = _repo.GetMeta(url);
+                    if (dlMeta != null && dlMeta.Platform.Equals("PlayStation 3", StringComparison.OrdinalIgnoreCase))
                     {
-                        var meta = _repo.GetMeta(url);
-                        if (meta != null && meta.Platform.Equals("PlayStation 3", StringComparison.OrdinalIgnoreCase))
+                        if (format == 0)
                         {
+                            // JB Folder → extract + convert to ISO
                             var tempBaseDir = Path.Combine(downloadPath, "ps3_temp");
                             _ps3Pipeline.Enqueue(completedFilePath, completedPath, tempBaseDir);
+                        }
+                        else if (filename.EndsWith(".dec.iso", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // .dec.iso → rename to .iso
+                            _ = Task.Run(() => _ps3Pipeline.RenameDecIsoAsync(completedFilePath));
                         }
                     }
 
