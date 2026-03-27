@@ -2,7 +2,7 @@ using Module.Core.Testing;
 using Module.Extractor.Tests.Helpers;
 
 [TestClass]
-public class ZipExtractEdgeCaseTests : ExtractorTestBase
+public class ZipExtractEdgeCaseContainerTests : ExtractorTestBase
 {
     private static ToolsContainer? _container;
     private static bool _dockerAvailable;
@@ -46,8 +46,9 @@ public class ZipExtractEdgeCaseTests : ExtractorTestBase
         var archivePath = Path.Combine(Tmp.Root, "truncated.7z");
         await _container!.ExecAsync(["7z", "a", C(archivePath), $"{C(inputDir)}/*"]);
 
-        // Truncate to half
+        // Truncate to half (delete + rewrite to avoid root-owned file permission issues in Docker)
         var bytes = File.ReadAllBytes(archivePath);
+        File.Delete(archivePath);
         File.WriteAllBytes(archivePath, bytes[..(bytes.Length / 2)]);
 
         var outDir = Tmp.CreateSubDir("trunc_out");
@@ -69,6 +70,7 @@ public class ZipExtractEdgeCaseTests : ExtractorTestBase
         await _container!.ExecAsync(["7z", "a", C(archivePath), $"{C(inputDir)}/*"]);
 
         var bytes = File.ReadAllBytes(archivePath);
+        File.Delete(archivePath);
         File.WriteAllBytes(archivePath, bytes[..(bytes.Length / 3)]);
 
         var (exitCode, _, _) = await _container!.ExecAsync(
