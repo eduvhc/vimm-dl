@@ -356,9 +356,10 @@ function renderCompleted(items){
         const isDone=cs&&cs.phase==='done';
         const isActive=cs&&(cs.phase==='queued'||cs.phase==='extracting'||cs.phase==='extracted'||cs.phase==='converting');
         let convBtns='';
+        const fnAttr=`data-fn="${esc(it.filename)}"`;
         if(isArchive&&!isActive){
-            if(isDone) convBtns=`<span style="color:var(--green);font-size:12px" title="Converted">&#10003;</span><button class="di-conv" onclick="convertSingle('${esc(it.filename)}')" title="Re-convert">&#9881;</button>`;
-            else convBtns=`<button class="di-conv" onclick="convertSingle('${esc(it.filename)}')" title="Convert to ISO">&#9881;</button><button class="ci-btn ci-dismiss" onclick="markDone('${esc(it.filename)}')" title="Mark as already converted" style="width:24px;height:24px;font-size:12px">&#10003;</button>`;
+            if(isDone) convBtns=`<span style="color:var(--green);font-size:12px" title="Converted">&#10003;</span><button class="di-conv" ${fnAttr} onclick="convertSingle(this.dataset.fn)" title="Re-convert">&#9881;</button>`;
+            else convBtns=`<button class="di-conv" ${fnAttr} onclick="convertSingle(this.dataset.fn)" title="Convert to ISO">&#9881;</button><button class="ci-btn ci-dismiss" ${fnAttr} onclick="markDone(this.dataset.fn)" title="Mark as already converted" style="width:24px;height:24px;font-size:12px">&#10003;</button>`;
         } else if(isArchive&&isActive){
             convBtns=`<span class="ci-phase ${cs.phase}" style="font-size:8px">${cs.phase}</span>`;
         }
@@ -421,9 +422,11 @@ function renderConversions(){
         const canRetry=isErr||isSkipped;
         const canDismiss=isDone||isSkipped||isErr;
 
+        const fnAttr2=`data-fn="${esc(it.zipName)}"`;
         let acts='';
-        if(canRetry) acts+=`<button class="ci-btn ci-retry" onclick="retryConvert('${esc(it.zipName)}')" title="Retry">&#8635;</button>`;
-        if(canDismiss) acts+=`<button class="ci-btn ci-dismiss" onclick="dismissConvert('${esc(it.zipName)}')" title="Dismiss">&#10005;</button>`;
+        if(isActive) acts+=`<button class="ci-btn" style="background:var(--red-bg);color:var(--red)" ${fnAttr2} onclick="abortConvert(this.dataset.fn)" title="Abort">&#9632;</button>`;
+        if(canRetry) acts+=`<button class="ci-btn ci-retry" ${fnAttr2} onclick="retryConvert(this.dataset.fn)" title="Retry">&#8635;</button>`;
+        if(canDismiss) acts+=`<button class="ci-btn ci-dismiss" ${fnAttr2} onclick="dismissConvert(this.dataset.fn)" title="Dismiss">&#10005;</button>`;
 
         // Parse percentage from message
         const pctMatch=it.message.match(/(\d+)%/);
@@ -461,11 +464,9 @@ function renderConversions(){
 }
 
 window.retryConvert=async name=>{
-    // Re-trigger convert-all which will re-enqueue failed items
     delete convStatuses[name];
     renderConversions();
-    await fetch('/api/convert-ps3',{method:'POST'});
-    loadConvStatus();
+    convertSingle(name);
 };
 
 window.dismissConvert=name=>{
@@ -484,6 +485,13 @@ $('btn-conv-all').onclick=async()=>{
     }catch(e){showError('Failed to start conversions: '+e.message)}
     setTimeout(()=>{$('btn-conv-all').disabled=false;$('btn-conv-all').textContent='Convert All'},2000);
     loadConvStatus();
+};
+
+window.abortConvert=async filename=>{
+    try{
+        await fetch('/api/convert-ps3/abort',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})});
+        loadConvStatus();
+    }catch(e){showError('Abort failed: '+e.message)}
 };
 
 window.removeCompleted=async id=>{

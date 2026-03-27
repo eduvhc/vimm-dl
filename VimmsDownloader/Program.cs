@@ -412,6 +412,12 @@ app.MapPost("/api/convert-ps3/mark-done", (ConvertSingleRequest req, Ps3Conversi
     return Results.Ok();
 });
 
+app.MapPost("/api/convert-ps3/abort", (ConvertSingleRequest req, Ps3ConversionPipeline pipeline) =>
+{
+    var aborted = pipeline.Abort(req.Filename);
+    return Results.Ok(new { aborted });
+});
+
 app.MapGet("/api/convert-ps3/status", (Ps3ConversionPipeline pipeline) =>
     pipeline.GetStatuses());
 
@@ -1211,6 +1217,7 @@ class Ps3ConversionPipeline
     private readonly ILogger<Ps3ConversionPipeline> _log;
     private readonly IConfiguration _config;
     private readonly ConcurrentDictionary<string, ConvertStatusUpdate> _statuses = new();
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellations = new();
     private readonly HashSet<string> _convertedSet = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _convertedLock = new();
     private readonly Channel<ExtractJob> _extractQueue = Channel.CreateUnbounded<ExtractJob>();
@@ -1338,12 +1345,32 @@ class Ps3ConversionPipeline
         if (result != queued)
             return false;
 
+        var cts = new CancellationTokenSource();
+        _cancellations[key] = cts;
         _extractQueue.Writer.TryWrite(new ExtractJob(zipPath, completedDir, tempBaseDir));
         EnsureStarted();
         return true;
     }
 
     public List<ConvertStatusUpdate> GetStatuses() => _statuses.Values.ToList();
+
+    public bool Abort(string filename)
+    {
+        if (_cancellations.TryRemove(filename, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+            _statuses[filename] = new ConvertStatusUpdate(filename, "error", "Aborted by user");
+            return true;
+        }
+        // If queued but not yet started, just mark as aborted
+        if (_statuses.TryGetValue(filename, out var s) && s.Phase == "queued")
+        {
+            _statuses[filename] = new ConvertStatusUpdate(filename, "error", "Aborted by user");
+            return true;
+        }
+        return false;
+    }
 
     private void EnsureStarted()
     {
@@ -1378,6 +1405,16 @@ class Ps3ConversionPipeline
             var zipName = Path.GetFileName(job.ZipPath);
             string? tempDir = null;
 
+            // Get per-job cancellation token (or skip if already aborted)
+            _cancellations.TryGetValue(zipName, out var cts);
+            var ct = cts?.Token ?? CancellationToken.None;
+
+            if (ct.IsCancellationRequested)
+            {
+                _cancellations.TryRemove(zipName, out _);
+                continue;
+            }
+
             try
             {
                 if (!File.Exists(job.ZipPath))
@@ -1402,17 +1439,20 @@ class Ps3ConversionPipeline
                 }
                 catch { /* DriveInfo may fail on some platforms, continue anyway */ }
 
-                await EmitStatus(zipName, "extracting", "Extracting...");
+                await EmitStatus(zipName, "extracting", "Extracting 0%");
 
                 tempDir = Path.Combine(job.TempBaseDir, Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(job.TempBaseDir);
 
                 var (ok, error) = await ZipExtract.ExtractAsync(job.ZipPath, tempDir,
-                    onProgress: pct => EmitStatus(zipName, "extracting", $"Extracting... {pct}%").GetAwaiter().GetResult());
+                    onProgress: pct => EmitStatus(zipName, "extracting", $"Extracting {pct}%").GetAwaiter().GetResult(),
+                    ct);
                 if (!ok)
                 {
-                    await EmitStatus(zipName, "error", $"Extraction failed: {error}");
-                    _log.LogError("Extraction failed for {Zip}: {Error}", zipName, error);
+                    var msg = ct.IsCancellationRequested ? "Aborted by user" : $"Extraction failed: {error}";
+                    await EmitStatus(zipName, "error", msg);
+                    if (!ct.IsCancellationRequested)
+                        _log.LogError("Extraction failed for {Zip}: {Error}", zipName, error);
                     try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
                     continue;
                 }
@@ -1428,12 +1468,22 @@ class Ps3ConversionPipeline
                 await EmitStatus(zipName, "extracted", "Queued for ISO conversion...");
                 _convertQueue.Writer.TryWrite(new ConvertJob(jbFolder, tempDir, zipName, job.CompletedDir));
             }
+            catch (OperationCanceledException)
+            {
+                await EmitStatus(zipName, "error", "Aborted by user");
+                if (tempDir != null)
+                    try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+            }
             catch (Exception ex)
             {
                 await EmitStatus(zipName, "error", $"Extract error: {ex.Message}");
                 _log.LogError(ex, "Extract failed for {Zip}", zipName);
                 if (tempDir != null)
                     try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+            }
+            finally
+            {
+                _cancellations.TryRemove(zipName, out _);
             }
         }
     }
@@ -1442,6 +1492,16 @@ class Ps3ConversionPipeline
     {
         await foreach (var job in _convertQueue.Reader.ReadAllAsync())
         {
+            _cancellations.TryGetValue(job.ZipName, out var cts);
+            var ct = cts?.Token ?? CancellationToken.None;
+
+            if (ct.IsCancellationRequested)
+            {
+                _cancellations.TryRemove(job.ZipName, out _);
+                try { if (Directory.Exists(job.TempDir)) Directory.Delete(job.TempDir, true); } catch { }
+                continue;
+            }
+
             try
             {
                 await EmitStatus(job.ZipName, "converting", "Creating ISO...");
@@ -1449,7 +1509,8 @@ class Ps3ConversionPipeline
                 var converter = new Ps3IsoConverter(new ConversionOptions());
                 var result = await converter.ConvertFolderToIsoAsync(
                     job.JbFolder, job.CompletedDir,
-                    onStatus: msg => EmitStatus(job.ZipName, "converting", msg).GetAwaiter().GetResult());
+                    onStatus: msg => EmitStatus(job.ZipName, "converting", msg).GetAwaiter().GetResult(),
+                    ct);
 
                 if (result.Success)
                 {
@@ -1464,6 +1525,10 @@ class Ps3ConversionPipeline
                     _log.LogError("ISO conversion failed for {Zip}: {Error}", job.ZipName, result.Error);
                 }
             }
+            catch (OperationCanceledException)
+            {
+                await EmitStatus(job.ZipName, "error", "Aborted by user");
+            }
             catch (Exception ex)
             {
                 await EmitStatus(job.ZipName, "error", $"Convert error: {ex.Message}");
@@ -1471,6 +1536,7 @@ class Ps3ConversionPipeline
             }
             finally
             {
+                _cancellations.TryRemove(job.ZipName, out _);
                 try { if (Directory.Exists(job.TempDir)) Directory.Delete(job.TempDir, true); } catch { }
             }
         }
