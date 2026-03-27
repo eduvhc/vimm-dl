@@ -9,13 +9,14 @@ RUN apk add --no-cache git gcc musl-dev && \
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble-aot AS build
 WORKDIR /src
 
-COPY Ps3IsoTools/Ps3IsoTools.csproj Ps3IsoTools/
-COPY ZipExtractor/ZipExtractor.csproj ZipExtractor/
+COPY Modules/Module.Core/Module.Core.csproj Modules/Module.Core/
+COPY Modules/Module.Extractor/Module.Extractor.csproj Modules/Module.Extractor/
+COPY Modules/Module.Ps3Iso/Module.Ps3Iso.csproj Modules/Module.Ps3Iso/
+COPY Modules/Module.Sync/Module.Sync.csproj Modules/Module.Sync/
 COPY VimmsDownloader/VimmsDownloader.csproj VimmsDownloader/
 RUN dotnet restore VimmsDownloader/VimmsDownloader.csproj -r linux-x64
 
-COPY Ps3IsoTools/ Ps3IsoTools/
-COPY ZipExtractor/ ZipExtractor/
+COPY Modules/ Modules/
 COPY VimmsDownloader/ VimmsDownloader/
 RUN dotnet publish VimmsDownloader/VimmsDownloader.csproj -c Release -r linux-x64 -o /app
 

@@ -1,35 +1,35 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
-using Microsoft.AspNetCore.SignalR;
-using Ps3IsoTools;
-using ZipExtractor;
+using Microsoft.Extensions.Logging;
+using Module.Extractor;
+using Module.Ps3Iso.Bridge;
 
-class Ps3ConversionPipeline
+namespace Module.Ps3Iso;
+
+public class Ps3ConversionPipeline
 {
-    private readonly IHubContext<DownloadHub> _hub;
+    private readonly IPs3IsoBridge _bridge;
     private readonly ILogger<Ps3ConversionPipeline> _log;
-    private readonly IConfiguration _config;
-    private readonly ConcurrentDictionary<string, ConvertStatusUpdate> _statuses = new();
+    private readonly ConcurrentDictionary<string, Ps3IsoStatusEvent> _statuses = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellations = new();
     private readonly HashSet<string> _convertedSet = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _convertedLock = new();
     private readonly Channel<ExtractJob> _extractQueue = Channel.CreateUnbounded<ExtractJob>();
     private readonly Channel<ConvertJob> _convertQueue = Channel.CreateUnbounded<ConvertJob>();
     private int _started;
+    private int _maxParallelism = 3;
     private string? _convertedFilePath;
 
     record ExtractJob(string ZipPath, string CompletedDir, string TempBaseDir);
     record ConvertJob(string JbFolder, string TempDir, string ZipName, string CompletedDir);
 
-    public Ps3ConversionPipeline(IHubContext<DownloadHub> hub, ILogger<Ps3ConversionPipeline> log,
-        IConfiguration config)
+    public Ps3ConversionPipeline(IPs3IsoBridge bridge, ILogger<Ps3ConversionPipeline> log)
     {
-        _hub = hub;
+        _bridge = bridge;
         _log = log;
-        _config = config;
     }
 
-    private int MaxParallelism => _config.GetValue("Ps3ConvertParallelism", 3);
+    public void Configure(int maxParallelism) => _maxParallelism = maxParallelism;
 
     public bool IsConverted(string filename)
     {
@@ -49,7 +49,6 @@ class Ps3ConversionPipeline
                 var markerPath = Path.Combine(dir, ".extraction_complete");
                 if (File.Exists(markerPath))
                 {
-                    // Extraction was completed before crash — resume from conversion
                     try
                     {
                         var lines = File.ReadAllLines(markerPath);
@@ -61,7 +60,7 @@ class Ps3ConversionPipeline
                             if (Directory.Exists(jbFolder) && !IsConverted(zipName))
                             {
                                 _log.LogInformation("Resuming conversion for previously extracted: {Zip}", zipName);
-                                var queued = new ConvertStatusUpdate(zipName, "queued", "Resuming from extraction...");
+                                var queued = new Ps3IsoStatusEvent(zipName, "queued", "Resuming from extraction...");
                                 _statuses[zipName] = queued;
                                 var cts = new CancellationTokenSource();
                                 _cancellations[zipName] = cts;
@@ -77,7 +76,6 @@ class Ps3ConversionPipeline
                     }
                 }
 
-                // No valid marker or couldn't resume — orphaned, delete
                 _log.LogInformation("Cleaning orphaned PS3 temp dir: {Path}", dir);
                 try { Directory.Delete(dir, true); } catch { }
             }
@@ -106,7 +104,7 @@ class Ps3ConversionPipeline
                 var name = line.Trim();
                 if (name.Length == 0) continue;
                 _convertedSet.Add(name);
-                _statuses.TryAdd(name, new ConvertStatusUpdate(name, "done", "Previously converted"));
+                _statuses.TryAdd(name, new Ps3IsoStatusEvent(name, "done", "Previously converted"));
             }
         }
         _log.LogInformation("Loaded {Count} previously converted archives", _convertedSet.Count);
@@ -132,7 +130,7 @@ class Ps3ConversionPipeline
 
     public void MarkConverted(string filename)
     {
-        _statuses[filename] = new ConvertStatusUpdate(filename, "done", "Marked as converted");
+        _statuses[filename] = new Ps3IsoStatusEvent(filename, "done", "Marked as converted");
         AddToConvertedList(filename);
     }
 
@@ -143,7 +141,7 @@ class Ps3ConversionPipeline
         if (!force && IsConverted(key))
             return false;
 
-        var queued = new ConvertStatusUpdate(key, "queued", "Waiting...");
+        var queued = new Ps3IsoStatusEvent(key, "queued", "Waiting...");
 
         var result = _statuses.AddOrUpdate(key, queued, (_, existing) =>
             existing.Phase is "queued" or "extracting" or "extracted" or "converting"
@@ -160,7 +158,7 @@ class Ps3ConversionPipeline
         return true;
     }
 
-    public List<ConvertStatusUpdate> GetStatuses() => _statuses.Values.ToList();
+    public List<Ps3IsoStatusEvent> GetStatuses() => _statuses.Values.ToList();
 
     public bool Abort(string filename)
     {
@@ -168,12 +166,12 @@ class Ps3ConversionPipeline
         {
             cts.Cancel();
             cts.Dispose();
-            _statuses[filename] = new ConvertStatusUpdate(filename, "error", "Aborted by user");
+            _statuses[filename] = new Ps3IsoStatusEvent(filename, "error", "Aborted by user");
             return true;
         }
         if (_statuses.TryGetValue(filename, out var s) && s.Phase == "queued")
         {
-            _statuses[filename] = new ConvertStatusUpdate(filename, "error", "Aborted by user");
+            _statuses[filename] = new Ps3IsoStatusEvent(filename, "error", "Aborted by user");
             return true;
         }
         return false;
@@ -183,7 +181,7 @@ class Ps3ConversionPipeline
     {
         if (Interlocked.CompareExchange(ref _started, 1, 0) == 0)
         {
-            var n = MaxParallelism;
+            var n = _maxParallelism;
             _log.LogInformation("Starting PS3 conversion pipeline with {N} workers per phase", n);
             for (var i = 0; i < n; i++)
             {
@@ -193,18 +191,11 @@ class Ps3ConversionPipeline
         }
     }
 
-    private Task EmitStatus(string zipName, string phase, string message)
-        => EmitStatus(zipName, phase, message, null);
-
-    private async Task EmitStatus(string zipName, string phase, string message, string? isoFilename)
+    private async Task EmitStatus(string zipName, string phase, string message, string? isoFilename = null)
     {
-        var update = new ConvertStatusUpdate(zipName, phase, message, isoFilename);
+        var update = new Ps3IsoStatusEvent(zipName, phase, message, isoFilename);
         _statuses[zipName] = update;
-        try
-        {
-            await _hub.Clients.All.SendAsync("ConvertStatus", update);
-            await _hub.Clients.All.SendAsync("Status", $"[PS3] {zipName}: {message}");
-        }
+        try { await _bridge.SendAsync(update); }
         catch { }
     }
 
@@ -232,8 +223,6 @@ class Ps3ConversionPipeline
                     continue;
                 }
 
-                // Quick header check — reads only the archive index, not full content.
-                // Catches truncated/corrupt archives (e.g. 50% downloaded) before extraction.
                 await EmitStatus(zipName, "extracting", "Checking archive\u2026");
                 var (headerOk, headerErr) = await ZipExtract.QuickCheckAsync(job.ZipPath, ct);
                 if (!headerOk)
@@ -287,7 +276,6 @@ class Ps3ConversionPipeline
                     continue;
                 }
 
-                // Write extraction marker so crash recovery can skip re-extraction
                 try
                 {
                     var markerPath = Path.Combine(tempDir, ".extraction_complete");
@@ -370,7 +358,6 @@ class Ps3ConversionPipeline
             finally
             {
                 _cancellations.TryRemove(job.ZipName, out _);
-                // Async cleanup — don't block the worker while deleting GBs of temp files
                 var tempToDelete = job.TempDir;
                 _ = Task.Run(() =>
                 {

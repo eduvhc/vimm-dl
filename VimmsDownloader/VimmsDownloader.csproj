@@ -14,8 +14,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Ps3IsoTools\Ps3IsoTools.csproj" />
-    <ProjectReference Include="..\ZipExtractor\ZipExtractor.csproj" />
+    <ProjectReference Include="..\Modules\Module.Extractor\Module.Extractor.csproj" />
+    <ProjectReference Include="..\Modules\Module.Ps3Iso\Module.Ps3Iso.csproj" />
+    <ProjectReference Include="..\Modules\Module.Sync\Module.Sync.csproj" />
   </ItemGroup>
 
 </Project>

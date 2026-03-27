@@ -5,8 +5,11 @@ builder.Services.AddSignalR()
     .AddJsonProtocol(o =>
         o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
 builder.Services.AddSingleton<QueueRepository>();
-builder.Services.AddSingleton<Ps3ConversionPipeline>();
+builder.Services.AddSingleton<Module.Ps3Iso.Bridge.IPs3IsoBridge, SignalRPs3IsoBridge>();
+builder.Services.AddSingleton<Module.Ps3Iso.Ps3ConversionPipeline>();
 builder.Services.AddSingleton<DownloadQueue>();
+builder.Services.AddSingleton<Module.Sync.Bridge.ISyncBridge, SignalRSyncBridge>();
+builder.Services.AddSingleton<Module.Sync.SyncService>();
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
 builder.Services.AddHttpClient("vimms")
@@ -51,7 +54,11 @@ repo.Init(app.Configuration.GetConnectionString("Default"));
 {
     var dlBase = app.Configuration.GetValue<string>("DownloadPath")
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-    app.Services.GetRequiredService<Ps3ConversionPipeline>().CleanupOrphans(dlBase);
+    var ps3Pipeline = app.Services.GetRequiredService<Module.Ps3Iso.Ps3ConversionPipeline>();
+    ps3Pipeline.Configure(app.Configuration.GetValue("Ps3ConvertParallelism", 3));
+    ps3Pipeline.CleanupOrphans(dlBase);
+    app.Services.GetRequiredService<Module.Sync.SyncService>().Configure(
+        dlBase, app.Configuration.GetValue<string>("SyncPath") ?? "");
 }
 
 // Auto-resume: if there are queued URLs, start downloading on app launch
@@ -81,5 +88,6 @@ app.MapDownloadEndpoints();
 app.MapMetadataEndpoints();
 app.MapConfigEndpoints();
 app.MapPs3Endpoints();
+app.MapSyncEndpoints();
 
 app.Run();

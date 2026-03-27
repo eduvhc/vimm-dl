@@ -1,3 +1,5 @@
+using Module.Ps3Iso;
+
 static class FileEndpoints
 {
     public static void MapFileEndpoints(this IEndpointRouteBuilder app)

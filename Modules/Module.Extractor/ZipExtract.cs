@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace ZipExtractor;
+namespace Module.Extractor;
 
 public static partial class ZipExtract
 {

@@ -1,0 +1,12 @@
+FROM alpine:latest AS build
+RUN apk add --no-cache git gcc musl-dev 7zip && \
+    git clone https://github.com/bucanero/ps3iso-utils.git && \
+    gcc -static ps3iso-utils/makeps3iso/makeps3iso.c -o /usr/local/bin/makeps3iso && \
+    gcc -static ps3iso-utils/patchps3iso/patchps3iso.c -o /usr/local/bin/patchps3iso
+
+FROM alpine:latest
+RUN apk add --no-cache 7zip
+COPY --from=build /usr/local/bin/makeps3iso /usr/local/bin/
+COPY --from=build /usr/local/bin/patchps3iso /usr/local/bin/
+WORKDIR /work
+CMD ["tail", "-f", "/dev/null"]

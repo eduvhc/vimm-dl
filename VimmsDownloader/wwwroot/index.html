@@ -156,8 +156,32 @@
         .list-fixed{overflow-y:auto;padding:0 12px 8px;max-height:40vh;flex-shrink:0}
         .empty{color:var(--text4);padding:40px;text-align:center;font-size:13px}
 
+        /* Sync */
+        .sync-bar{display:flex;gap:6px;padding:6px 20px;align-items:center;flex-shrink:0}
+        .sync-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--rs);color:var(--text2);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none;transition:border-color 0.2s}
+        .sync-input:focus{border-color:var(--accent2);color:var(--text)}
+        .sync-input::placeholder{color:var(--text4)}
+        .sync-disks{display:flex;gap:10px;padding:4px 20px 6px;flex-shrink:0}
+        .sync-disk{flex:1;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:11px}
+        .sync-disk-label{font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+        .sync-disk-label .drive{color:var(--text);font-family:var(--mono);text-transform:none;letter-spacing:0}
+        .sync-disk-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+        .sync-disk-key{color:var(--text4)}
+        .sync-disk-val{color:var(--text2);font-family:var(--mono);font-variant-numeric:tabular-nums}
+        .sync-disk-bar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:6px}
+        .sync-disk-fill{height:100%;border-radius:2px}
+        .sync-stats{display:flex;gap:12px;padding:0 20px 4px;font-size:11px;font-family:var(--mono)}
+        .sync-stat{display:flex;align-items:center;gap:4px}
+        .sync-stat .dot-sm{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+        .sync-file{display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:2px;background:var(--card);border-radius:var(--rs);font-size:11px;font-family:var(--mono)}
+        .sync-file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
+        .sync-file-size{color:var(--text4);font-variant-numeric:tabular-nums;flex-shrink:0}
+        .sync-file-status{flex-shrink:0;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px}
+        .sync-copy-prog{height:3px;background:var(--surface2);border-radius:2px;margin-top:3px;overflow:hidden}
+        .sync-copy-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--green));border-radius:2px;transition:width 0.3s}
+
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-        @media(prefers-reduced-motion:reduce){.prog-fill,.partial-fill{transition:none}}
+        @media(prefers-reduced-motion:reduce){.prog-fill,.partial-fill,.sync-copy-fill{transition:none}}
     </style>
 </head>
 <body>
@@ -192,6 +216,20 @@
     </div>
 </div>
 <div class="list-fixed" id="history-list"><div class="empty">No downloads yet</div></div>
+
+<div class="sec">
+    Sync <span class="cnt" id="sync-count">0</span>
+    <div class="sec-right">
+        <button class="sec-btn" style="color:var(--green);border-color:var(--green-border)" id="btn-sync-all" disabled>Copy All New</button>
+    </div>
+</div>
+<div class="sync-bar">
+    <input class="sync-input" id="sync-path" placeholder="Target path (e.g. H:\PS3ISO)" spellcheck="false">
+    <button class="cb cb-go" id="btn-sync-compare" style="padding:6px 12px;flex:none">Compare</button>
+</div>
+<div class="sync-disks" id="sync-disks" style="display:none"></div>
+<div class="sync-stats" id="sync-stats" style="display:none"></div>
+<div class="list-fixed" id="sync-list"><div class="empty">Set target path and click Compare</div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
 <script>
@@ -578,6 +616,120 @@ hub.onreconnecting(()=>{$('conn-dot').className='dot warn'});
 hub.onreconnected(()=>{$('conn-dot').className='dot on';loadConfig(true);restoreStatus();loadData()});
 hub.onclose(()=>{$('conn-dot').className='dot off'});
 hub.start().then(()=>{$('conn-dot').className='dot on';loadConfig();loadData();restoreStatus();checkForUpdate()});
+
+// --- Sync ---
+let syncData=null,syncCopying={};
+
+$('btn-sync-compare').onclick=async()=>{
+    const p=$('sync-path').value.trim();
+    if(!p)return;
+    $('btn-sync-compare').disabled=true;$('btn-sync-compare').textContent='Comparing\u2026';
+    try{
+        const sr=await fetch('/api/sync/path',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p})});
+        if(!sr.ok){showError('Failed to set sync path');$('btn-sync-compare').disabled=false;$('btn-sync-compare').textContent='Compare';return}
+        const r=await fetch('/api/sync/compare');
+        if(!r.ok){showError('Sync compare failed: '+r.statusText);$('btn-sync-compare').disabled=false;$('btn-sync-compare').textContent='Compare';return}
+        syncData=await r.json();
+        renderSync();
+    }catch(e){showError('Sync compare failed: '+e.message)}
+    $('btn-sync-compare').disabled=false;$('btn-sync-compare').textContent='Compare';
+};
+
+$('btn-sync-all').onclick=async()=>{
+    if(!syncData||!syncData.new.length)return;
+    $('btn-sync-all').disabled=true;$('btn-sync-all').textContent='Copying\u2026';
+    try{
+        const r=await fetch('/api/sync/copy',{method:'POST'});
+        if(!r.ok){const t=await r.text();showError(t||'Sync copy failed');$('btn-sync-all').disabled=false;$('btn-sync-all').textContent='Copy All New'}
+    }catch(e){showError('Sync copy failed: '+e.message);$('btn-sync-all').disabled=false;$('btn-sync-all').textContent='Copy All New'}
+};
+
+window.syncCopySingle=async name=>{
+    try{
+        const r=await fetch('/api/sync/copy/single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:name})});
+        if(!r.ok){const t=await r.text();showError(t||'Copy failed')}
+    }catch(e){showError('Copy failed: '+e.message)}
+};
+
+function renderDiskCard(d,accent){
+    if(!d)return'';
+    const usedPct=d.totalSpace>0?((d.totalSpace-d.freeSpace)/d.totalSpace*100):0;
+    const fillColor=usedPct>90?'var(--red)':usedPct>75?'var(--amber)':accent;
+    return `<div class="sync-disk">
+        <div class="sync-disk-label"><span class="drive">${esc(d.label)}</span></div>
+        <div class="sync-disk-row"><span class="sync-disk-key">ISOs</span><span class="sync-disk-val">${d.isoCount} &middot; ${fmtBytes(d.isoTotalSize)}</span></div>
+        <div class="sync-disk-row"><span class="sync-disk-key">Free</span><span class="sync-disk-val">${fmtBytes(d.freeSpace)}</span></div>
+        <div class="sync-disk-row"><span class="sync-disk-key">Total</span><span class="sync-disk-val">${fmtBytes(d.totalSpace)}</span></div>
+        <div class="sync-disk-bar"><div class="sync-disk-fill" style="width:${usedPct.toFixed(1)}%;background:${fillColor}"></div></div>
+    </div>`;
+}
+
+function renderSync(){
+    const el=$('sync-list');
+    const stats=$('sync-stats');
+    const disks=$('sync-disks');
+    if(!syncData||!syncData.pathExists){
+        const msg=syncData?.error||(!syncData?'Set target path and click Compare':'Target path does not exist or drive is disconnected');
+        el.innerHTML=`<div class="empty" style="${syncData?.error?'color:var(--red)':''}">${esc(msg)}</div>`;
+        stats.style.display='none';disks.style.display='none';$('sync-count').textContent='0';$('btn-sync-all').disabled=true;return;
+    }
+    if(syncData.error){
+        el.innerHTML=`<div class="empty" style="color:var(--amber)">${esc(syncData.error)}</div>`;
+        stats.style.display='none';disks.style.display='none';$('sync-count').textContent='0';$('btn-sync-all').disabled=true;return;
+    }
+    const newF=syncData.new||[],synced=syncData.synced||[],tOnly=syncData.targetOnly||[];
+    $('sync-count').textContent=newF.length;
+    $('btn-sync-all').disabled=newF.length===0;
+
+    // Disk info cards
+    if(syncData.source||syncData.target){
+        disks.style.display='flex';
+        disks.innerHTML=(syncData.source?renderDiskCard(syncData.source,'var(--accent2)'):'')
+            +(syncData.target?renderDiskCard(syncData.target,'var(--blue)'):'');
+    } else disks.style.display='none';
+
+    stats.style.display='flex';
+    const newSize=newF.reduce((a,f)=>a+f.size,0);
+    stats.innerHTML=`<span class="sync-stat"><span class="dot-sm" style="background:var(--green)"></span> ${newF.length} new${newF.length?' &middot; '+fmtBytes(newSize):''}</span>`
+        +`<span class="sync-stat"><span class="dot-sm" style="background:var(--accent2)"></span> ${synced.length} synced</span>`
+        +`<span class="sync-stat"><span class="dot-sm" style="background:var(--text4)"></span> ${tOnly.length} target only</span>`;
+
+    if(!newF.length&&!synced.length&&!tOnly.length){el.innerHTML='<div class="empty">No ISO files found</div>';return}
+
+    let html='';
+    newF.forEach(f=>{
+        const cp=syncCopying[f.name];
+        const prog=cp?`<div class="sync-copy-prog"><div class="sync-copy-fill" style="width:${cp.percent.toFixed(1)}%"></div></div>`:'';
+        const statusText=cp?`${cp.percent.toFixed(1)}%`:'NEW';
+        const statusColor=cp?'var(--amber)':'var(--green)';
+        const fnAttr=`data-fn="${esc(f.name)}"`;
+        const btn=cp?'':`<button class="ibtn ibtn-sm ibtn-play" ${fnAttr} onclick="syncCopySingle(this.dataset.fn)" title="Copy" style="width:22px;height:22px;font-size:10px">&#9654;</button>`;
+        html+=`<div class="sync-file"><span class="sync-file-status" style="color:${statusColor}">${statusText}</span><span class="sync-file-name">${esc(f.name)}</span><span class="sync-file-size">${fmtBytes(f.size)}</span>${btn}</div>${prog?'<div style="padding:0 10px 2px">'+prog+'</div>':''}`;
+    });
+    synced.forEach(f=>{
+        html+=`<div class="sync-file"><span class="sync-file-status" style="color:var(--accent2)">SYNCED</span><span class="sync-file-name">${esc(f.name)}</span><span class="sync-file-size">${fmtBytes(f.size)}</span></div>`;
+    });
+    tOnly.forEach(f=>{
+        html+=`<div class="sync-file"><span class="sync-file-status" style="color:var(--text4)">TARGET</span><span class="sync-file-name" style="color:var(--text4)">${esc(f.name)}</span><span class="sync-file-size">${fmtBytes(f.size)}</span></div>`;
+    });
+    el.innerHTML=html;
+}
+
+hub.on('SyncProgress',data=>{
+    syncCopying[data.filename]={percent:data.percent,copied:data.copied,total:data.total};
+    renderSync();
+});
+hub.on('SyncCompleted',data=>{
+    delete syncCopying[data.filename];
+    if(data.success&&syncData){
+        // Move from new to synced
+        const idx=(syncData.new||[]).findIndex(f=>f.name===data.filename);
+        if(idx>=0){const f=syncData.new.splice(idx,1)[0];syncData.synced.push(f)}
+    } else if(!data.success&&data.error) showError('Sync copy failed: '+data.filename+' \u2014 '+data.error);
+    renderSync();
+    // Re-enable copy all button if nothing left copying
+    if(Object.keys(syncCopying).length===0){$('btn-sync-all').disabled=(syncData?.new||[]).length===0;$('btn-sync-all').textContent='Copy All New'}
+});
 
 async function checkForUpdate(){
     try{

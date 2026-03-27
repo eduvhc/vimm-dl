@@ -1,5 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Module.Ps3Iso.Bridge;
+using Module.Sync;
+using Module.Sync.Bridge;
 
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(JsonElement))]
@@ -30,11 +33,19 @@ using System.Text.Json.Serialization;
 [JsonSerializable(typeof(List<QueueIdRow>))]
 [JsonSerializable(typeof(List<PartialFile>))]
 [JsonSerializable(typeof(List<LogEntry>))]
-[JsonSerializable(typeof(ConvertStatusUpdate))]
-[JsonSerializable(typeof(List<ConvertStatusUpdate>))]
+[JsonSerializable(typeof(Ps3IsoStatusEvent))]
+[JsonSerializable(typeof(List<Ps3IsoStatusEvent>))]
 [JsonSerializable(typeof(ConvertPs3Response))]
 [JsonSerializable(typeof(ConvertSingleRequest))]
 [JsonSerializable(typeof(ConvertSingleResponse))]
 [JsonSerializable(typeof(AbortResponse))]
+[JsonSerializable(typeof(SyncCompareResponse))]
+[JsonSerializable(typeof(SyncFileInfo))]
+[JsonSerializable(typeof(List<SyncFileInfo>))]
+[JsonSerializable(typeof(SyncDiskInfo))]
+[JsonSerializable(typeof(SyncCopyRequest))]
+[JsonSerializable(typeof(SyncSetPathRequest))]
+[JsonSerializable(typeof(SyncProgressEvent))]
+[JsonSerializable(typeof(SyncCompletedEvent))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class AppJsonContext : JsonSerializerContext;

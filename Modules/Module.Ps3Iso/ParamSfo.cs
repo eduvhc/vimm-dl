@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Ps3IsoTools;
+namespace Module.Ps3Iso;
 
 public class ParamSfo
 {

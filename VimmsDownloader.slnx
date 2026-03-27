@@ -1,6 +1,12 @@
 <Solution>
   <Project Path="VimmsDownloader/VimmsDownloader.csproj" />
-  <Project Path="Ps3IsoTools/Ps3IsoTools.csproj" />
-  <Project Path="ZipExtractor/ZipExtractor.csproj" />
   <Project Path="MockServer/MockServer.csproj" />
+  <Project Path="Modules/Module.Core/Module.Core.csproj" />
+  <Project Path="Modules/Module.Core.Testing/Module.Core.Testing.csproj" />
+  <Project Path="Modules/Module.Extractor/Module.Extractor.csproj" />
+  <Project Path="Modules/Module.Extractor.Tests/Module.Extractor.Tests.csproj" />
+  <Project Path="Modules/Module.Ps3Iso/Module.Ps3Iso.csproj" />
+  <Project Path="Modules/Module.Ps3Iso.Tests/Module.Ps3Iso.Tests.csproj" />
+  <Project Path="Modules/Module.Sync/Module.Sync.csproj" />
+  <Project Path="Modules/Module.Sync.Tests/Module.Sync.Tests.csproj" />
 </Solution>

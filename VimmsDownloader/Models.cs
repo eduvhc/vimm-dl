@@ -27,11 +27,14 @@ record StatusResponse(bool IsRunning, bool IsPaused, string? CurrentFile, string
     string? Progress, long TotalBytes, long DownloadedBytes, List<LogEntry> RecentLogs, List<PartialFile>? Partials);
 record LogEntry(string Time, string Type, string Message);
 record CompletedEvent(string Url, string Filename, string Filepath);
-record ConvertStatusUpdate(string ZipName, string Phase, string Message, string? IsoFilename = null);
 record ConvertPs3Response(int Queued, int Skipped, List<string> Files);
 record ConvertSingleRequest(string Filename);
 record ConvertSingleResponse(bool Enqueued, string Filename);
 record AbortResponse(bool Aborted);
+
+// Sync (request-only records that live in the web layer)
+record SyncCopyRequest(string Filename);
+record SyncSetPathRequest(string Path);
 
 static class QueueLock
 {

@@ -1,3 +1,5 @@
+using Module.Ps3Iso;
+
 static class Ps3Endpoints
 {
     public static void MapPs3Endpoints(this IEndpointRouteBuilder app)

@@ -9,7 +9,7 @@ class DownloadQueue
     private readonly ILogger<DownloadQueue> _log;
     private readonly IHubContext<DownloadHub> _hub;
     private readonly QueueRepository _repo;
-    private readonly Ps3ConversionPipeline _ps3Pipeline;
+    private readonly Module.Ps3Iso.Ps3ConversionPipeline _ps3Pipeline;
     private CancellationTokenSource? _cts;
     private readonly ConcurrentQueue<LogEntry> _recentLogs = new();
 
@@ -24,7 +24,7 @@ class DownloadQueue
 
     public DownloadQueue(IHttpClientFactory httpFactory, IConfiguration config,
         ILogger<DownloadQueue> log, IHubContext<DownloadHub> hub, QueueRepository repo,
-        Ps3ConversionPipeline ps3Pipeline)
+        Module.Ps3Iso.Ps3ConversionPipeline ps3Pipeline)
     {
         _httpFactory = httpFactory;
         _config = config;

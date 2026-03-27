@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace Ps3IsoTools;
+namespace Module.Ps3Iso;
 
 public class ConversionOptions
 {
@@ -71,7 +71,6 @@ public class Ps3IsoConverter(ConversionOptions options)
 
         try
         {
-            // makeps3iso (PS3_UPDATE is excluded by the C tool via NOPS3_UPDATE define)
             onStatus?.Invoke("Creating ISO...");
             var makeArgs = options.SplitForFat32
                 ? $"-p0 -s \"{jbFolder}\" \"{tempIsoPath}\""
@@ -81,7 +80,6 @@ public class Ps3IsoConverter(ConversionOptions options)
             if (!makeOk || !File.Exists(tempIsoPath))
                 return new ConversionResult(false, null, $"makeps3iso failed: {makeOutput}");
 
-            // patchps3iso
             if (options.PatchFirmware)
             {
                 onStatus?.Invoke($"Patching firmware to {options.FirmwareVersion}...");
@@ -89,7 +87,6 @@ public class Ps3IsoConverter(ConversionOptions options)
                     $"-p0 \"{tempIsoPath}\" {options.FirmwareVersion}", ct);
             }
 
-            // Rename to final name
             if (File.Exists(finalIsoPath))
                 File.Delete(finalIsoPath);
             File.Move(tempIsoPath, finalIsoPath);
@@ -97,7 +94,6 @@ public class Ps3IsoConverter(ConversionOptions options)
             var sizeMb = new FileInfo(finalIsoPath).Length / (1024.0 * 1024.0);
             onStatus?.Invoke($"ISO created: {isoName} ({sizeMb:F2} MB)");
 
-            // Delete source folder if requested
             if (options.DeleteSourceAfter)
             {
                 try { Directory.Delete(jbFolder, true); } catch { }
@@ -137,7 +133,7 @@ public class Ps3IsoConverter(ConversionOptions options)
         return (process.ExitCode == 0, output.ToString());
     }
 
-    static string SanitizeFileName(string name)
+    internal static string SanitizeFileName(string name)
     {
         var invalid = Path.GetInvalidFileNameChars();
         var sb = new StringBuilder(name.Length);

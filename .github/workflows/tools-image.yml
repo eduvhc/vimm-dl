@@ -1,0 +1,32 @@
+name: Publish Tools Image
+
+on:
+  push:
+    paths: ['Modules/Module.Core.Testing/Dockerfile.tools']
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/vimm-dl-tools
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: Modules/Module.Core.Testing
+          file: Modules/Module.Core.Testing/Dockerfile.tools
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
