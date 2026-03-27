@@ -4,12 +4,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
+    <PublishAot>true</PublishAot>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ps3IsoTools\Ps3IsoTools.csproj" />
+    <ProjectReference Include="..\ZipExtractor\ZipExtractor.csproj" />
   </ItemGroup>
 
 </Project>

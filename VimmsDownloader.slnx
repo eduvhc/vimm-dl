@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="VimmsDownloader/VimmsDownloader.csproj" />
+  <Project Path="Ps3IsoTools/Ps3IsoTools.csproj" />
+  <Project Path="ZipExtractor/ZipExtractor.csproj" />
   <Project Path="MockServer/MockServer.csproj" />
 </Solution>
