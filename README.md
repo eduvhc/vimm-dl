@@ -13,6 +13,13 @@ docker run -d -p 5000:5000 \
 
 Open **http://localhost:5000**, paste vault URLs, done.
 
+## Volumes
+
+| Volume | Type | Purpose |
+|--------|------|---------|
+| `/app/data` | Named volume | SQLite database (queue, metadata cache). Use a named volume — bind mounts can conflict with SQLite WAL on some hosts |
+| `/downloads` | Bind mount | Your files. Contains `downloading/`, `completed/` (archives + ISOs), and `ps3_temp/` (auto-cleaned) |
+
 ## Features
 
 - Paste URLs in any format — downloads start automatically
