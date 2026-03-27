@@ -47,8 +47,67 @@ class QueueRepository
         try { Exec(db, "ALTER TABLE queued_urls ADD COLUMN format INTEGER NOT NULL DEFAULT 0"); } catch { }
         try { Exec(db, "ALTER TABLE url_meta ADD COLUMN formats TEXT"); } catch { }
         try { Exec(db, "ALTER TABLE completed_urls ADD COLUMN completed_at TEXT"); } catch { }
+        try { Exec(db, "ALTER TABLE url_meta ADD COLUMN serial TEXT"); } catch { }
         Exec(db, "CREATE INDEX IF NOT EXISTS idx_completed_url ON completed_urls(url)");
+        Exec(db, "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+        // Default settings
+        EnsureSetting(db, SettingsKeys.FixThe, "true");
+        EnsureSetting(db, SettingsKeys.AddSerial, "true");
+        EnsureSetting(db, SettingsKeys.StripRegion, "true");
+        EnsureSetting(db, SettingsKeys.Ps3Parallelism, "3");
+        EnsureSetting(db, SettingsKeys.DownloadPath, "");
+        EnsureSetting(db, SettingsKeys.SyncPath, "");
     }
+
+    private static void EnsureSetting(SqliteConnection db, string key, string value)
+    {
+        using var cmd = db.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO settings (key, value) VALUES ($key, $value)";
+        cmd.Parameters.AddWithValue("$key", key);
+        cmd.Parameters.AddWithValue("$value", value);
+        cmd.ExecuteNonQuery();
+    }
+
+    public Dictionary<string, string> GetAllSettings()
+    {
+        using var db = Open();
+        using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT key, value FROM settings";
+        using var r = cmd.ExecuteReader();
+        var result = new Dictionary<string, string>();
+        while (r.Read()) result[r.GetString(0)] = r.GetString(1);
+        return result;
+    }
+
+    public string? GetSetting(string key)
+    {
+        using var db = Open();
+        using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT value FROM settings WHERE key = $key";
+        cmd.Parameters.AddWithValue("$key", key);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    public void SaveSetting(string key, string value)
+    {
+        using var db = Open();
+        using var cmd = db.CreateCommand();
+        cmd.CommandText = "INSERT OR REPLACE INTO settings (key, value) VALUES ($key, $value)";
+        cmd.Parameters.AddWithValue("$key", key);
+        cmd.Parameters.AddWithValue("$value", value);
+        cmd.ExecuteNonQuery();
+    }
+
+    private static readonly string DefaultDownloadPath =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+
+    public string GetDownloadPath()
+    {
+        var p = GetSetting("download_path");
+        return string.IsNullOrWhiteSpace(p) ? DefaultDownloadPath : p;
+    }
+
+    public string GetSyncPath() => GetSetting("sync_path") ?? "";
 
     public bool HasQueuedUrls()
     {
@@ -137,6 +196,27 @@ class QueueRepository
         catch { tx.Rollback(); return false; }
     }
 
+    public void ReorderQueue(List<int> orderedIds)
+    {
+        using var db = Open();
+        using var tx = db.BeginTransaction();
+        try
+        {
+            // Move all to negative IDs first to avoid conflicts
+            for (int i = 0; i < orderedIds.Count; i++)
+                ExecTx(db, tx, "UPDATE queued_urls SET id = $newId WHERE id = $oldId",
+                    ("$newId", -(i + 1)), ("$oldId", orderedIds[i]));
+
+            // Assign sequential positive IDs in new order
+            for (int i = 0; i < orderedIds.Count; i++)
+                ExecTx(db, tx, "UPDATE queued_urls SET id = $newId WHERE id = $oldId",
+                    ("$newId", i + 1), ("$oldId", -(i + 1)));
+
+            tx.Commit();
+        }
+        catch { tx.Rollback(); throw; }
+    }
+
     public void ClearQueue()
     {
         using var db = Open();
@@ -157,7 +237,7 @@ class QueueRepository
     {
         using var db = Open();
         using var cmd = db.CreateCommand();
-        cmd.CommandText = "SELECT title, platform, size, formats FROM url_meta WHERE url = $url";
+        cmd.CommandText = "SELECT title, platform, size, formats, serial FROM url_meta WHERE url = $url";
         cmd.Parameters.AddWithValue("$url", url);
         using var r = cmd.ExecuteReader();
         if (!r.Read() || r.IsDBNull(0)) return null;
@@ -166,6 +246,7 @@ class QueueRepository
         var platform = WebUtility.HtmlDecode(r.GetString(1));
         var size = r.GetString(2);
         var formats = r.IsDBNull(3) ? null : r.GetString(3);
+        var serial = r.IsDBNull(4) ? null : r.GetString(4);
 
         if (title != r.GetString(0) || platform != r.GetString(1))
         {
@@ -177,22 +258,23 @@ class QueueRepository
             upd.ExecuteNonQuery();
         }
 
-        return new MetaResponse(title, platform, size, formats);
+        return new MetaResponse(title, platform, size, formats, serial);
     }
 
-    public void SaveMeta(string url, string title, string platform, string size, string? formats)
+    public void SaveMeta(string url, string title, string platform, string size, string? formats, string? serial)
     {
         using var db = Open();
         using var cmd = db.CreateCommand();
         cmd.CommandText = """
-            INSERT OR REPLACE INTO url_meta (url, title, platform, size, formats)
-            VALUES ($url, $title, $platform, $size, $formats)
+            INSERT OR REPLACE INTO url_meta (url, title, platform, size, formats, serial)
+            VALUES ($url, $title, $platform, $size, $formats, $serial)
         """;
         cmd.Parameters.AddWithValue("$url", url);
         cmd.Parameters.AddWithValue("$title", title);
         cmd.Parameters.AddWithValue("$platform", platform);
         cmd.Parameters.AddWithValue("$size", size);
         cmd.Parameters.AddWithValue("$formats", (object?)formats ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$serial", (object?)serial ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 

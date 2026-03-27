@@ -9,6 +9,50 @@ public static partial class ZipExtract
     [GeneratedRegex(@"(\d+)%")]
     private static partial Regex PctRegex();
 
+    private static readonly string SevenZipPath = Find7z();
+
+    private static string Find7z()
+    {
+        if (Can7zRun("7z")) return "7z";
+
+        if (OperatingSystem.IsWindows())
+        {
+            var candidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip", "7z.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "7-Zip", "7z.exe"),
+            };
+            foreach (var path in candidates)
+                if (File.Exists(path)) return path;
+        }
+
+        return "7z"; // fallback — let it fail with a clear error
+    }
+
+    private static bool Can7zRun(string path)
+    {
+        try
+        {
+            using var p = Process.Start(Create7zProcess(path, "--help"));
+            p?.WaitForExit(3000);
+            return p?.ExitCode == 0;
+        }
+        catch { return false; }
+    }
+
+    private static ProcessStartInfo Create7zProcess(string arguments)
+        => Create7zProcess(SevenZipPath, arguments);
+
+    private static ProcessStartInfo Create7zProcess(string fileName, string arguments) => new()
+    {
+        FileName = fileName,
+        Arguments = arguments,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true,
+    };
+
     /// <summary>
     /// Quick archive header check using 7z l (list). Only reads the archive index,
     /// not the full content — catches truncated/corrupt headers without full I/O.
@@ -19,16 +63,7 @@ public static partial class ZipExtract
         if (!File.Exists(zipPath))
             return (false, $"File not found: {zipPath}");
 
-        var psi = new ProcessStartInfo
-        {
-            FileName = "7z",
-            Arguments = $"l \"{zipPath}\" -y",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-
-        using var proc = Process.Start(psi)
+        using var proc = Process.Start(Create7zProcess($"l \"{zipPath}\" -y"))
             ?? throw new InvalidOperationException("Failed to start 7z");
 
         var errors = new StringBuilder();
@@ -58,16 +93,7 @@ public static partial class ZipExtract
 
         Directory.CreateDirectory(outputDir);
 
-        var psi = new ProcessStartInfo
-        {
-            FileName = "7z",
-            Arguments = $"x \"{zipPath}\" -o\"{outputDir}\" -y -bsp1 -mmt=on",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-
-        using var proc = Process.Start(psi)
+        using var proc = Process.Start(Create7zProcess($"x \"{zipPath}\" -o\"{outputDir}\" -y -bsp1 -mmt=on"))
             ?? throw new InvalidOperationException("Failed to start 7z");
 
         var errors = new StringBuilder();

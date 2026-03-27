@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <PublishAot>true</PublishAot>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
@@ -15,8 +15,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Modules\Module.Extractor\Module.Extractor.csproj" />
-    <ProjectReference Include="..\Modules\Module.Ps3Iso\Module.Ps3Iso.csproj" />
+    <ProjectReference Include="..\Modules\Module.Ps3Pipeline\Module.Ps3Pipeline.csproj" />
     <ProjectReference Include="..\Modules\Module.Sync\Module.Sync.csproj" />
+    <ProjectReference Include="..\Modules\Module.Download\Module.Download.csproj" />
   </ItemGroup>
 
 </Project>

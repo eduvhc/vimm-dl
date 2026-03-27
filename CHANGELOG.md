@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.5.0
+
+### Architecture
+- **Module.Ps3Iso split** into `Module.Ps3IsoTools` (pure tools: ParamSfo, Ps3IsoConverter, IsoFilenameFormatter) and `Module.Ps3Pipeline` (orchestration: JB folder + dec.iso pipelines)
+- **IPipeline contract** in `Module.Core/Pipeline/` — generic interface for console pipelines with `PipelineState`, `PipelinePhase`, `PipelineStatusEvent`. Future consoles implement `IPipeline`
+- **Module.Download** — download loop extracted from `DownloadQueue.cs` into a proper module with bridge events, `VaultPageParser`, `IDownloadItemProvider`. No repo/SignalR/ASP.NET dependencies
+- **Magic strings eliminated** — phases (`PipelinePhase`, `Ps3Phase`), platforms (`Platforms.IsPS3()`), extensions (`FileExtensions.IsDecIso()`), settings (`SettingsKeys.*`)
+- **Endpoint consolidation** — 22 → 18 endpoints: merged status+partials into data, config into settings, queue move+format into PATCH, PS3 convert+single, sync path+compare, sync copy+single
+
+### Frontend
+- **React + Vite + Tailwind** — replaced 831-line vanilla `index.html` with component-based React 19 + TypeScript app
+- **PS3 XMB theme** — deep blue-black, blue glow, PS3 button colors (X=blue, O=red, △=green, □=purple)
+- **qBittorrent layout** — toolbar → controls → tabs (Active/Completed/Sync/Settings) → content → status bar
+- **Drag-and-drop reorder** — HTML5 native drag with bulk `POST /api/queue/reorder`, removed up/down arrows
+- **Download speed** — real-time MB/s in queue items, calculated server-side
+- **Settings tab** — ISO rename toggles (fix "The", add serial, strip region) + parallelism slider
+- **Auto-restore** — reads `isRunning`/`currentUrl`/`progress` from `/api/data` on page load
+
+### PS3 Pipeline
+- **Archive .dec.iso support** — format>0 archives extracted, .dec.iso found inside → renamed → moved to completed
+- **JB folder fallback** — `Ps3DecIsoPipeline.HandleExtractedArchive()` delegates cleanly instead of internal hack
+- **ISO filename formatting** — `IsoFilenameFormatter`: fix "The" placement, add serial (BLES-00043), strip region. All configurable
+- **Serial number** — scraped from vault HTML, stored in `url_meta.serial`
+
+### Configuration
+- **Settings in SQLite** — `settings` table with `SettingsKeys` constants. Removed `DownloadPath`/`SyncPath`/`Ps3ConvertParallelism` from `appsettings.json`
+
+### Download
+- **Auto-resume on startup** — backend starts downloading immediately if queue has items
+- **IsPaused reset** — `Run()` clears `IsPaused` flag, fixing ghost paused state after resume
+- **7z auto-detection** — Windows: finds `C:\Program Files\7-Zip\7z.exe` when not in PATH
+
+### Testing
+- 181 tests across 5 modules: 87 Sync, 51 Download, 16 Extractor, 10 Ps3IsoTools, 17 Ps3Pipeline
+- Download module: state management, file recovery, vault parser edge cases
+- ISO formatter: "The" fix, serial append, region stripping, options
+
+### Breaking API Changes
+- `GET /api/status`, `/api/partials`, `/api/config` removed (merged)
+- `POST /api/queue/move`, `/api/queue/format` → `PATCH /api/queue/{id}`
+- `POST /api/convert-ps3/*` → `POST /api/ps3/convert` + `/api/ps3/action`
+- `GET /api/sync/compare` → `POST`, `POST /api/sync/path` removed
+- SignalR `ConvertStatus`: `zipName` → `itemName`, `isoFilename` → `outputFilename`
+- `DataResponse` includes status fields, `SettingsResponse` includes system info
+
 ## v0.4.0
 
 ### Added

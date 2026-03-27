@@ -18,10 +18,29 @@ static class DownloadEndpoints
             }
         });
 
-        app.MapPost("/api/queue/move", (MoveRequest req, QueueRepository repo) =>
+        // Merged: move + format into PATCH
+        app.MapPatch("/api/queue/{id:int}", (int id, QueuePatchRequest req, QueueRepository repo) =>
+        {
+            if (req.Direction != null)
+            {
+                lock (QueueLock.Sync)
+                    return repo.MoveInQueue(id, req.Direction) ? Results.Ok() : Results.NotFound();
+            }
+            if (req.Format.HasValue)
+            {
+                repo.SetFormat(id, req.Format.Value);
+                return Results.Ok();
+            }
+            return Results.BadRequest();
+        });
+
+        app.MapPost("/api/queue/reorder", (QueueReorderRequest req, QueueRepository repo) =>
         {
             lock (QueueLock.Sync)
-                return repo.MoveInQueue(req.Id, req.Direction) ? Results.Ok() : Results.NotFound();
+            {
+                repo.ReorderQueue(req.Ids);
+                return Results.Ok();
+            }
         });
 
         app.MapDelete("/api/queue", (QueueRepository repo) =>
@@ -36,30 +55,30 @@ static class DownloadEndpoints
             return Results.Ok();
         });
 
-        app.MapPost("/api/queue/format", (SetFormatRequest req, QueueRepository repo) =>
+        app.MapGet("/api/queue/export", (QueueRepository repo) =>
         {
-            repo.SetFormat(req.Id, req.Format);
-            return Results.Ok();
+            var items = repo.GetQueueIds()
+                .Select(q => new QueueExportItem(q.Url, q.Format))
+                .ToList();
+            return Results.Ok(items);
         });
 
-        app.MapGet("/api/status", (DownloadQueue queue, QueueRepository repo) =>
+        app.MapPost("/api/queue/import", (List<QueueExportItem> items, QueueRepository repo) =>
         {
-            var dlPath = Path.Combine(queue.GetBasePath(), "downloading");
+            var existing = new HashSet<string>(
+                repo.GetQueueIds().Select(q => q.Url), StringComparer.OrdinalIgnoreCase);
 
-            List<PartialFile>? partials = null;
-            if (repo.HasQueuedUrls() && !queue.IsRunning && Directory.Exists(dlPath))
+            int added = 0, skipped = 0;
+            foreach (var item in items)
             {
-                partials = [];
-                foreach (var file in Directory.GetFiles(dlPath))
-                {
-                    var fi = new FileInfo(file);
-                    if (fi.Length > 0)
-                        partials.Add(new PartialFile(fi.Name, fi.Length, fi.Length / 1048576.0));
-                }
-            }
+                if (string.IsNullOrWhiteSpace(item.Url) || existing.Contains(item.Url))
+                { skipped++; continue; }
 
-            return new StatusResponse(queue.IsRunning, queue.IsPaused, queue.CurrentFile, queue.CurrentUrl,
-                queue.CurrentProgress, queue.TotalBytes, queue.DownloadedBytes, queue.GetRecentLogs(), partials);
+                repo.AddToQueue(item.Url, item.Format);
+                existing.Add(item.Url);
+                added++;
+            }
+            return Results.Ok(new QueueImportResponse(added, skipped));
         });
     }
 }

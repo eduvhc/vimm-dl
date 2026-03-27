@@ -5,8 +5,12 @@
   <Project Path="Modules/Module.Core.Testing/Module.Core.Testing.csproj" />
   <Project Path="Modules/Module.Extractor/Module.Extractor.csproj" />
   <Project Path="Modules/Module.Extractor.Tests/Module.Extractor.Tests.csproj" />
-  <Project Path="Modules/Module.Ps3Iso/Module.Ps3Iso.csproj" />
-  <Project Path="Modules/Module.Ps3Iso.Tests/Module.Ps3Iso.Tests.csproj" />
+  <Project Path="Modules/Module.Ps3IsoTools/Module.Ps3IsoTools.csproj" />
+  <Project Path="Modules/Module.Ps3IsoTools.Tests/Module.Ps3IsoTools.Tests.csproj" />
+  <Project Path="Modules/Module.Ps3Pipeline/Module.Ps3Pipeline.csproj" />
+  <Project Path="Modules/Module.Ps3Pipeline.Tests/Module.Ps3Pipeline.Tests.csproj" />
   <Project Path="Modules/Module.Sync/Module.Sync.csproj" />
   <Project Path="Modules/Module.Sync.Tests/Module.Sync.Tests.csproj" />
+  <Project Path="Modules/Module.Download/Module.Download.csproj" />
+  <Project Path="Modules/Module.Download.Tests/Module.Download.Tests.csproj" />
 </Solution>

@@ -82,12 +82,18 @@ static class MetadataEndpoints
                     formats = JsonSerializer.Serialize(fmtList, AppJsonContext.Default.ListFormatOption);
                 }
 
-                repo.SaveMeta(url, title, platform, size, formats);
-                return new MetaResponse(title, platform, size, formats);
+                // Extract serial number (e.g. BLES-00043, BLUS-30001)
+                var serialMatch = Regex.Match(html, @"""Serial""\s*:\s*""([A-Z]{4}-\d{5})""");
+                if (!serialMatch.Success)
+                    serialMatch = Regex.Match(html, @"Serial\s*#?\s*\n?\s*([A-Z]{4}-\d{5})");
+                var serial = serialMatch.Success ? serialMatch.Groups[1].Value : null;
+
+                repo.SaveMeta(url, title, platform, size, formats, serial);
+                return new MetaResponse(title, platform, size, formats, serial);
             }
             catch
             {
-                return new MetaResponse(url.Split('/').Last(), "", "", null);
+                return new MetaResponse(url.Split('/').Last(), "", "", null, null);
             }
         });
     }

@@ -5,8 +5,10 @@ builder.Services.AddSignalR()
     .AddJsonProtocol(o =>
         o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
 builder.Services.AddSingleton<QueueRepository>();
-builder.Services.AddSingleton<Module.Ps3Iso.Bridge.IPs3IsoBridge, SignalRPs3IsoBridge>();
-builder.Services.AddSingleton<Module.Ps3Iso.Ps3ConversionPipeline>();
+builder.Services.AddSingleton<Module.Ps3Pipeline.Bridge.IPs3PipelineBridge, SignalRPs3PipelineBridge>();
+builder.Services.AddSingleton<Module.Ps3Pipeline.Ps3ConversionPipeline>();
+builder.Services.AddSingleton<Module.Download.Bridge.IDownloadBridge, SignalRDownloadBridge>();
+builder.Services.AddSingleton<Module.Download.DownloadService>();
 builder.Services.AddSingleton<DownloadQueue>();
 builder.Services.AddSingleton<Module.Sync.Bridge.ISyncBridge, SignalRSyncBridge>();
 builder.Services.AddSingleton<Module.Sync.SyncService>();
@@ -52,13 +54,12 @@ repo.Init(app.Configuration.GetConnectionString("Default"));
 
 // Clean up orphaned temp files from previous crashes
 {
-    var dlBase = app.Configuration.GetValue<string>("DownloadPath")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-    var ps3Pipeline = app.Services.GetRequiredService<Module.Ps3Iso.Ps3ConversionPipeline>();
-    ps3Pipeline.Configure(app.Configuration.GetValue("Ps3ConvertParallelism", 3));
+    var dlBase = repo.GetDownloadPath();
+    var ps3Pipeline = app.Services.GetRequiredService<Module.Ps3Pipeline.Ps3ConversionPipeline>();
+    var parallelism = int.TryParse(repo.GetSetting(SettingsKeys.Ps3Parallelism), out var p) ? p : 3;
+    ps3Pipeline.Configure(parallelism);
     ps3Pipeline.CleanupOrphans(dlBase);
-    app.Services.GetRequiredService<Module.Sync.SyncService>().Configure(
-        dlBase, app.Configuration.GetValue<string>("SyncPath") ?? "");
+    app.Services.GetRequiredService<Module.Sync.SyncService>().Configure(dlBase, repo.GetSyncPath());
 }
 
 // Auto-resume: if there are queued URLs, start downloading on app launch
@@ -69,12 +70,7 @@ if (repo.HasQueuedUrls())
         await Task.Delay(1500);
         var queue = app.Services.GetRequiredService<DownloadQueue>();
         if (!queue.IsRunning)
-        {
-            var dlPath = app.Configuration.GetValue<string>("DownloadPath");
-            if (string.IsNullOrWhiteSpace(dlPath))
-                dlPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-            queue.Start(dlPath);
-        }
+            queue.Start(repo.GetDownloadPath());
     });
 }
 
@@ -86,8 +82,22 @@ app.MapHub<DownloadHub>("/hub");
 app.MapFileEndpoints();
 app.MapDownloadEndpoints();
 app.MapMetadataEndpoints();
-app.MapConfigEndpoints();
 app.MapPs3Endpoints();
 app.MapSyncEndpoints();
+app.MapSettingsEndpoints();
+
+// Auto-resume: if there are queued items, start downloading on startup
+{
+    var logger = app.Services.GetRequiredService<ILogger<DownloadQueue>>();
+    var queueRepo = app.Services.GetRequiredService<QueueRepository>();
+    var dlQueue = app.Services.GetRequiredService<DownloadQueue>();
+    var hasQueued = queueRepo.HasQueuedUrls();
+    logger.LogInformation("Auto-resume check: hasQueued={HasQueued}, isRunning={IsRunning}", hasQueued, dlQueue.IsRunning);
+    if (hasQueued && !dlQueue.IsRunning)
+    {
+        logger.LogInformation("Auto-resuming download queue");
+        dlQueue.Start(null);
+    }
+}
 
 app.Run();
