@@ -275,8 +275,19 @@ async function loadData(){
     try{const p=await(await fetch('/api/partials')).json();partialsCache={};(p.files||[]).forEach(f=>{partialsCache[f.name]=f})}catch{}
     queuedItems=d.queued.map(it=>{if(it.formats&&typeof it.formats==='string')try{it.formats=JSON.parse(it.formats)}catch{it.formats=null};return it});
     renderQueue();renderCompleted(d.completed);
+    // Fetch missing metadata sequentially to avoid rate-limiting vimm.net
     const miss=d.queued.filter(it=>!it.title&&!metaFetching.has(it.url));
-    for(const it of miss){metaFetching.add(it.url);fetchMeta(it.url).then(m=>{metaFetching.delete(it.url);if(m){const qi=queuedItems.find(q=>q.url===it.url);if(qi){qi.title=m.title;qi.platform=m.platform;qi.size=m.size;qi.formats=m.formats}renderQueue()}})}
+    if(miss.length){
+        (async()=>{
+            for(const it of miss){
+                if(metaFetching.has(it.url))continue;
+                metaFetching.add(it.url);
+                const m=await fetchMeta(it.url);
+                metaFetching.delete(it.url);
+                if(m){const qi=queuedItems.find(q=>q.url===it.url);if(qi){qi.title=m.title;qi.platform=m.platform;qi.size=m.size;qi.formats=m.formats}renderQueue()}
+            }
+        })();
+    }
 }
 
 function renderQueue(){

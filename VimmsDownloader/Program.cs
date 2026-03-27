@@ -1167,11 +1167,22 @@ class DownloadQueue
                     await Task.Delay(delay * 1000, ct);
                 }
                 catch (OperationCanceledException) { break; }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    _log.LogWarning("Rate limited on {Url}, backing off 60s", url);
+                    await Emit("Error", $"Rate limited: {url} - waiting 60s before retry");
+                    await Task.Delay(60_000, ct);
+                    // Don't delete — will retry on next loop iteration
+                }
                 catch (Exception ex)
                 {
                     _log.LogError(ex, "Error downloading {Url}", url);
                     await Emit("Error", $"Failed: {url} - {ex.Message}");
-                    _repo.DeleteFromQueue(id);
+                    // Wait before retrying to avoid hammering the server
+                    var backoff = rand.Next(15, 46);
+                    await Emit("Status", $"Waiting {backoff}s before retry...");
+                    await Task.Delay(backoff * 1000, ct);
+                    // Don't delete — will retry on next loop iteration
                 }
             }
 
