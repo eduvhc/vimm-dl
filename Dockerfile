@@ -5,22 +5,33 @@ RUN apk add --no-cache git gcc musl-dev && \
     gcc -static ps3iso-utils/makeps3iso/makeps3iso.c -o /usr/local/bin/makeps3iso && \
     gcc -static ps3iso-utils/patchps3iso/patchps3iso.c -o /usr/local/bin/patchps3iso
 
-# Stage 2: Build .NET app
+# Stage 2: Build frontend
+FROM node:22-alpine AS frontend
+WORKDIR /src/VimmsDownloader/client
+COPY VimmsDownloader/client/package*.json ./
+RUN npm ci
+COPY VimmsDownloader/client/ ./
+RUN npm run build
+
+# Stage 3: Build .NET app
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble-aot AS build
 WORKDIR /src
 
 COPY Modules/Module.Core/Module.Core.csproj Modules/Module.Core/
 COPY Modules/Module.Extractor/Module.Extractor.csproj Modules/Module.Extractor/
-COPY Modules/Module.Ps3Iso/Module.Ps3Iso.csproj Modules/Module.Ps3Iso/
+COPY Modules/Module.Ps3IsoTools/Module.Ps3IsoTools.csproj Modules/Module.Ps3IsoTools/
+COPY Modules/Module.Ps3Pipeline/Module.Ps3Pipeline.csproj Modules/Module.Ps3Pipeline/
+COPY Modules/Module.Download/Module.Download.csproj Modules/Module.Download/
 COPY Modules/Module.Sync/Module.Sync.csproj Modules/Module.Sync/
 COPY VimmsDownloader/VimmsDownloader.csproj VimmsDownloader/
 RUN dotnet restore VimmsDownloader/VimmsDownloader.csproj -r linux-x64
 
 COPY Modules/ Modules/
 COPY VimmsDownloader/ VimmsDownloader/
+COPY --from=frontend /src/VimmsDownloader/wwwroot/ VimmsDownloader/wwwroot/
 RUN dotnet publish VimmsDownloader/VimmsDownloader.csproj -c Release -r linux-x64 -o /app
 
-# Stage 3: Runtime (non-chiseled — needs to run 7z, makeps3iso, patchps3iso)
+# Stage 4: Runtime
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble
 RUN apt-get update && apt-get install -y --no-install-recommends 7zip && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -33,7 +44,6 @@ VOLUME /app/data
 VOLUME /downloads
 
 ENV ASPNETCORE_URLS=http://+:5000
-ENV DownloadPath=/downloads
 ENV ConnectionStrings__Default="Data Source=/app/data/queue.db"
 
 EXPOSE 5000
