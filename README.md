@@ -20,6 +20,22 @@ Open **http://localhost:5000**, paste vault URLs, done.
 | `/app/data` | Named volume | SQLite database (queue, metadata cache). Use a named volume — bind mounts can conflict with SQLite WAL on some hosts |
 | `/downloads` | Bind mount | Your files. Contains `downloading/`, `completed/` (archives + ISOs), and `ps3_temp/` (auto-cleaned) |
 
+**Bind mount examples for `/downloads`:**
+
+```bash
+# Linux / macOS
+-v ~/Downloads:/downloads
+
+# Windows (PowerShell)
+-v ${HOME}\Downloads:/downloads
+
+# Windows (CMD)
+-v %USERPROFILE%\Downloads:/downloads
+
+# Custom path
+-v /mnt/games:/downloads
+```
+
 ## Features
 
 - Paste URLs in any format — downloads start automatically
