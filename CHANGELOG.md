@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.4.0
+
+### Added
+- **Two-section UI** -- Active (queue + converting) and History (completed with inline ISO status). Replaces the confusing three-section layout
+- **Enriched history items** -- game title, platform icon, archive/ISO file sizes, existence checks, completion timestamps all shown inline
+- **Inline ISO status** -- each completed PS3 item shows its ISO status directly (Ready/Converting/Failed/Not converted) with action buttons
+- **Smart crash recovery** -- extraction marker files (`.extraction_complete`) allow the app to skip re-extraction after a crash and resume directly from ISO conversion
+- **Archive header validation** -- quick `7z l` check catches truncated/corrupt archives before extraction starts, without reading the full file
+- **Multithreaded extraction** -- `7z x -mmt=on` enables multi-core decompression for archives that support it
+- **DB index** -- `completed_urls.url` indexed for faster metadata joins as history grows
+- **Completion timestamps** -- `completed_at` column tracks when each download finished
+
+### Changed
+- **SRP refactoring** -- `Program.cs` (1562 lines) split into 13 files: `Models.cs`, `AppJsonContext.cs`, `QueueRepository.cs`, `DownloadHub.cs`, `DownloadQueue.cs`, `Ps3ConversionPipeline.cs`, and 5 endpoint files under `Endpoints/`
+- **Unified `/api/data` endpoint** -- returns enriched history with metadata, conversion status, ISO info, and file existence in one call. Eliminates N+1 `/api/check-exists` calls
+- **Structured ISO filename** -- `ConvertStatusUpdate` carries `IsoFilename` field instead of encoding it in the message string
+- **`IsArchive()` centralized** -- shared `PathHelpers.IsArchive()` replaces duplicate extension checks across files
+- **Frontend debouncing** -- `loadData()` debounced and fetches parallelized with `Promise.all`
+- **Async temp cleanup** -- post-conversion temp directory deletion runs in background, unblocking the worker for the next job
+- **`HasQueuedUrls()` optimized** -- uses `EXISTS` instead of `COUNT(*)`
+
+### Removed
+- **PS3 Conversion section** -- conversion status now inline in Active and History sections
+- **`/api/check-exists`** -- file existence folded into `/api/data`
+- **`/api/convert-ps3/status`** -- conversion status folded into `/api/data`
+- Dead code: `GetCompletedItems()`, `GetCompletedPs3FilePaths()`, `CheckExistsResponse`
+
+### Fixed
+- File handle not closed before move causing "Zip file no longer exists" error on PS3 conversion (explicit `DisposeAsync` before `File.Move`)
+- `prefers-reduced-motion` respected for progress bar animations
+- Tabular numerics (`font-variant-numeric: tabular-nums`) on all size/percentage displays
+
 ## v0.3.0
 
 ### Added

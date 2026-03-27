@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-Vimm's Lair download queue manager with PS3 ISO conversion. Single .NET project, everything in `Program.cs`, UI in `wwwroot/index.html`. Two class libraries: `Ps3IsoTools` (JB→ISO conversion) and `ZipExtractor` (7z wrapper). Mock server in `MockServer/` for testing. GitHub user: eduvhc. Target platform: Linux (Docker + bare metal).
+Vimm's Lair download queue manager with PS3 ISO conversion. Main project split into SRP files under `VimmsDownloader/`, UI in `wwwroot/index.html`. Two class libraries: `Ps3IsoTools` (JB→ISO conversion) and `ZipExtractor` (7z wrapper). Mock server in `MockServer/` for testing. GitHub user: eduvhc. Target platform: Linux (Docker + bare metal).
 
 ## Architecture
 
-- **Single file backend** - `Program.cs` contains minimal APIs, SignalR hub (`DownloadHub`), `QueueRepository`, `DownloadQueue`, and `Ps3ConversionPipeline`.
+- **SRP file structure** - `Program.cs` (startup/DI only), `Models.cs` (records + PathHelpers), `AppJsonContext.cs` (JSON source gen), `QueueRepository.cs`, `DownloadHub.cs`, `DownloadQueue.cs`, `Ps3ConversionPipeline.cs`, and `Endpoints/` folder with 5 endpoint files (`FileEndpoints`, `DownloadEndpoints`, `MetadataEndpoints`, `ConfigEndpoints`, `Ps3Endpoints`).
 - **AOT-ready** - `PublishAot=true`, no Dapper (raw ADO.NET via `SqliteCommand`/`SqliteDataReader`), JSON source generator (`AppJsonContext`), all API responses use named record types. SignalR configured with `AddJsonProtocol` using same source-generated context. Both class libraries marked `IsAotCompatible`.
 - **QueueRepository** - singleton, encapsulates all SQLite operations. Uses `$param` style parameters. `Init()` handles DB creation, WAL mode, idempotent migrations (`CREATE TABLE IF NOT EXISTS` + `try/catch ALTER TABLE ADD COLUMN`).
 - **DownloadQueue** - singleton registered via DI. Uses `IHubContext<DownloadHub>` to broadcast to all clients (decoupled from any specific SignalR connection). Downloads survive browser close. After PS3 JB Folder downloads complete, enqueues to `Ps3ConversionPipeline` (non-blocking).
@@ -18,7 +18,7 @@ Vimm's Lair download queue manager with PS3 ISO conversion. Single .NET project,
 
 SQLite, file `queue.db` in working directory (or `/app/data/queue.db` in Docker via `ConnectionStrings__Default`). Three tables:
 - `queued_urls` (id INTEGER PK AUTOINCREMENT, url TEXT, format INTEGER DEFAULT 0) - download queue, ordered by id. format=0 is default (e.g. JB Folder for PS3), format>0 uses alt param
-- `completed_urls` (id INTEGER PK AUTOINCREMENT, url TEXT, filename TEXT, filepath TEXT) - finished downloads with full path
+- `completed_urls` (id INTEGER PK AUTOINCREMENT, url TEXT, filename TEXT, filepath TEXT, completed_at TEXT) - finished downloads with full path and timestamp. Indexed on `url` for metadata joins
 - `url_meta` (url TEXT PK, title TEXT, platform TEXT, size TEXT, formats TEXT) - metadata cache to avoid re-fetching, formats is JSON array of {value,label,title,size}
 
 WAL mode set on init. Idempotent migrations: tables created with `IF NOT EXISTS`, columns added with `try { ALTER TABLE ADD COLUMN } catch { }`. DB path configurable via `ConnectionStrings:Default` in config/env.
@@ -43,10 +43,12 @@ WAL mode set on init. Idempotent migrations: tables created with `IF NOT EXISTS`
 Two-phase pipeline with N workers per phase (default N=3, configurable via `Ps3ConvertParallelism`):
 
 **Phase 1 - Extraction** (N workers read from `_extractQueue`):
-1. Check zip exists, check disk space (~3x zip size needed)
-2. Extract to `{downloadPath}/ps3_temp/{guid}/` via `ZipExtract.ExtractAsync` (7z)
-3. Find JB folder via `Ps3IsoConverter.FindJbFolder` (checks root, 1-deep, 2-deep for `PS3_GAME/PARAM.SFO`)
-4. Push to conversion queue
+1. Quick archive header check via `7z l` (catches truncated/corrupt archives without full I/O)
+2. Check zip exists, check disk space (~3x zip size needed)
+3. Extract to `{downloadPath}/ps3_temp/{guid}/` via `ZipExtract.ExtractAsync` (7z with `-mmt=on`)
+4. Find JB folder via `Ps3IsoConverter.FindJbFolder` (checks root, 1-deep, 2-deep for `PS3_GAME/PARAM.SFO`)
+5. Write `.extraction_complete` marker (zipName + jbFolder path) for crash recovery
+6. Push to conversion queue
 
 **Phase 2 - Conversion** (N workers read from `_convertQueue`):
 1. Parse PARAM.SFO for game title + ID
@@ -56,10 +58,13 @@ Two-phase pipeline with N workers per phase (default N=3, configurable via `Ps3C
 5. Delete temp extraction folder
 
 **Crash recovery** (runs on startup via `CleanupOrphans`):
-- Deletes all subdirs in `ps3_temp/` (orphaned extractions)
+- Checks each `ps3_temp/` subdir for `.extraction_complete` marker
+- If marker found → extraction was complete, enqueues directly to convert queue (skips re-extraction)
+- If no marker → orphaned incomplete extraction, deletes the dir
 - Deletes `temp_*.iso` files in `completed/` (orphaned partial ISOs)
 
 **Edge cases handled**:
+- Archive corrupted/truncated → `7z l` header check fails fast before extraction starts
 - Zip deleted between queue and extract → `File.Exists` check, error status
 - Disk full → pre-check: zip size * 3 vs available space, skips with error
 - Same zip queued twice → atomic `AddOrUpdate` blocks active items (queued/extracting/converting)
@@ -123,16 +128,16 @@ Adding URLs auto-starts the queue if not already running.
 - Single `index.html`, no build step, no framework
 - Fonts: Inter (UI) + JetBrains Mono (data/mono)
 - SignalR client from CDN
-- No folder picker / file browser - user types path directly, hits Check
+- Two-section layout: **Active** (queue items + extracting/converting) and **History** (completed with inline ISO status)
 - Platform icons use CSS `mask-image`: SVG has `fill="currentColor"`, div with mask + colored background (blue=PlayStation, red=Nintendo, green=Xbox, blue=Sega)
-- uTorrent-style: active download shown inline on queue item, no separate card
-- Per-item buttons change based on state: play (idle), pause (downloading, CSS pseudo-element bars), resume (paused, green glow)
-- Up/down arrows for reorder, X to remove
+- Active items: download shown inline with progress bar, per-item buttons (play/pause/resume/reorder/remove)
+- History items show: game title, platform, archive row (filename + size + exists check), ISO row (PS3 only: filename + size or conversion status), completion timestamp
 - Format dropdown on queue items with multiple formats (e.g. PS3: JB Folder / .dec.iso)
-- PS3 ISO Conversion section: phase badges, retry/dismiss buttons, Convert All / Clear Done
-- Completed list shows filepath, checks if file still exists on disk (teal = exists, red = removed)
+- Convert All button for bulk PS3 ISO conversion
 - Page title updates with progress: `51.23% — Skate 3`
-- `renderQueue()` called on every progress update to refresh inline state
+- `loadData()` debounced and fetches parallelized with `Promise.all`
+- `prefers-reduced-motion` respected, tabular numerics on all data columns
+- `:focus-visible` on all interactive elements
 
 ## Ps3IsoTools (class library)
 

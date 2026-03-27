@@ -11,13 +11,15 @@ A lightweight, queue-based download manager for [Vimm's Lair](https://vimm.net) 
 - **Auto-resume on restart** -- killed the app? rebooted? it picks up automatically on next launch
 - **PS3 ISO conversion** -- automatically converts PS3 JB Folder downloads to ISO (extract zip, makeps3iso, patchps3iso)
 - **Parallel conversion pipeline** -- configurable parallelism (default 3): multiple extractions and conversions run simultaneously
-- **Convert All** -- one-click bulk conversion for all completed PS3 downloads, with per-file status, retry on error, and dismiss
+- **Two-section UI** -- Active (queue + converting) and History (completed with inline ISO status, file sizes, timestamps)
+- **Convert All** -- one-click bulk conversion for all completed PS3 downloads, with per-file status, retry on error
 - **Two-folder system** -- active downloads in `downloading/`, finished files + ISOs in `completed/`
 - **Metadata** -- fetches game title, platform, and file size from vault pages, cached in SQLite
 - **Platform icons** -- colored SVG icons per platform (PlayStation, Nintendo, Sega, Xbox)
 - **Real-time progress** -- live percentage (2 decimal places), inline progress bar, page title updates
 - **Background safe** -- downloads continue even if you close the browser tab
-- **Crash recovery** -- detects fully downloaded files stuck in `downloading/` and recovers them. Cleans up orphaned temp files from interrupted conversions
+- **Crash recovery** -- detects fully downloaded files stuck in `downloading/` and recovers them. Resumes PS3 conversions from extraction markers. Cleans up orphaned temp files
+- **Archive validation** -- quick header check catches truncated/corrupt archives before extraction
 - **Race condition safe** -- queue mutations are locked and wrapped in transactions
 - **Native AOT** -- fast startup, small memory footprint, self-contained binary (no .NET runtime needed)
 
@@ -30,7 +32,7 @@ A lightweight, queue-based download manager for [Vimm's Lair](https://vimm.net) 
 | Real-time | SignalR (JSON protocol, source-generated) |
 | Downloads | HttpClient with browser-mimicking headers |
 | PS3 Tools | [bucanero/ps3iso-utils](https://github.com/bucanero/ps3iso-utils) (makeps3iso, patchps3iso) |
-| Extraction | 7-Zip (7z) |
+| Extraction | 7-Zip (7z, multithreaded) |
 | Frontend | Vanilla JS, single `index.html` |
 
 ## Quick Start
@@ -98,16 +100,21 @@ The app checks for new versions on startup and shows a banner with a link to the
 
 PS3 games downloaded as JB Folder (format 0) are automatically converted to ISO after download:
 
-1. Zip extracted via 7-Zip to a temp folder
-2. JB folder located (handles nested structures from Vimm's)
-3. `makeps3iso` creates the ISO
-4. `patchps3iso` patches firmware to 3.55
-5. ISO renamed to `[Game Name] - [GAME-ID].iso` and placed in `completed/`
-6. Original zip is preserved, temp files cleaned up
+1. Archive header validated via `7z l` (catches truncated/corrupt files fast)
+2. Zip extracted via 7-Zip to a temp folder (multithreaded with `-mmt=on`)
+3. Extraction marker written (`.extraction_complete`) for crash recovery
+4. JB folder located (handles nested structures from Vimm's)
+5. `makeps3iso` creates the ISO
+6. `patchps3iso` patches firmware to 3.55
+7. ISO renamed to `[Game Name] - [GAME-ID].iso` and placed in `completed/`
+8. Original zip is preserved, temp files cleaned up asynchronously
 
 The pipeline runs N parallel workers per phase (default 3). While 3 games extract, 3 others can convert simultaneously. Configure with `Ps3ConvertParallelism` env var.
 
-If the container is killed mid-conversion, orphaned temp files are automatically cleaned on next startup.
+If the container is killed mid-conversion:
+- **After extraction but before conversion** -- the extraction marker is detected on restart, and conversion resumes without re-extracting
+- **During extraction** -- the incomplete temp dir is cleaned up and extraction restarts from the archive
+- **Orphaned temp ISOs** -- automatically cleaned on startup
 
 ## Configuration
 
@@ -164,28 +171,36 @@ volumes:
 
 ```
 VimmsDownloader/
-  Program.cs              # APIs, SignalR hub, download service, conversion pipeline (single file)
+  Program.cs              # App startup, DI, middleware
+  Models.cs               # Record types, PathHelpers
+  AppJsonContext.cs        # JSON source generator (AOT)
+  QueueRepository.cs      # SQLite data access (raw ADO.NET)
+  DownloadHub.cs           # SignalR hub
+  DownloadQueue.cs         # Background download service
+  Ps3ConversionPipeline.cs # Two-phase extract + convert pipeline
+  Endpoints/
+    FileEndpoints.cs       # /api/data, /api/partials
+    DownloadEndpoints.cs   # Queue CRUD, /api/status
+    MetadataEndpoints.cs   # /api/meta, /api/version
+    ConfigEndpoints.cs     # /api/config, check-path
+    Ps3Endpoints.cs        # /api/convert-ps3/*
   wwwroot/
-    index.html            # Full UI
-    icons/
-      playstation3.svg    # Platform icons
-  appsettings.json
-  queue.db                # Auto-created SQLite database
+    index.html             # Full UI (vanilla JS)
+    icons/                 # Platform SVG icons
 
 Ps3IsoTools/
-  Ps3IsoConverter.cs      # JB folder → ISO conversion (wraps makeps3iso/patchps3iso)
-  ParamSfo.cs             # PARAM.SFO parser (extracts game title + ID)
+  Ps3IsoConverter.cs       # JB folder -> ISO (wraps makeps3iso/patchps3iso)
+  ParamSfo.cs              # PARAM.SFO parser (game title + ID)
 
 ZipExtractor/
-  ZipExtract.cs           # 7z extraction wrapper
+  ZipExtract.cs            # 7z wrapper (extract + header check)
 
 MockServer/
-  Program.cs              # Fake Vimm's Lair for testing
+  Program.cs               # Fake Vimm's Lair for testing
 
-Dockerfile                # Three-stage: ps3 tools (Alpine) → .NET AOT build → runtime
-.github/
-  workflows/
-    publish.yml           # CI: Docker image to ghcr.io
+Dockerfile                 # Three-stage: ps3 tools (Alpine) -> .NET AOT build -> runtime
+.github/workflows/
+  publish.yml              # CI: Docker image to ghcr.io
 ```
 
 ## Mock Server
@@ -228,7 +243,7 @@ Colors are applied automatically via CSS mask:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/data` | Queue + completed lists with joined metadata |
+| GET | `/api/data` | Queue + enriched history (metadata, ISO status, file sizes) |
 | POST | `/api/queue` | Add URLs `{"urls":["..."],"format":0}` |
 | DELETE | `/api/queue/{id}` | Remove item |
 | DELETE | `/api/queue` | Clear queue |
@@ -239,9 +254,10 @@ Colors are applied automatically via CSS mask:
 | POST | `/api/config/check-path` | Test write permissions |
 | GET | `/api/partials` | List files in downloading folder |
 | GET | `/api/status` | Running/paused state + recent logs |
-| GET | `/api/check-exists?filename=&filepath=` | Check completed folder |
 | POST | `/api/convert-ps3` | Queue all completed PS3 zips for ISO conversion |
-| GET | `/api/convert-ps3/status` | Current conversion pipeline statuses |
+| POST | `/api/convert-ps3/single` | Queue single file for conversion |
+| POST | `/api/convert-ps3/abort` | Abort active conversion |
+| POST | `/api/convert-ps3/mark-done` | Mark as already converted |
 | GET | `/api/version` | Current + latest version info |
 
 </details>
@@ -258,26 +274,24 @@ Colors are applied automatically via CSS mask:
 | `Status` | Server > Client | Status messages |
 | `Progress` | Server > Client | Progress string |
 | `Completed` | Server > Client | File done `{url, filename, filepath}` |
-| `ConvertStatus` | Server > Client | PS3 conversion update `{zipName, phase, message}` |
+| `ConvertStatus` | Server > Client | PS3 conversion update `{zipName, phase, message, isoFilename}` |
 | `Error` | Server > Client | Error message |
 | `Done` | Server > Client | Queue finished |
 
 </details>
 
-## A Note on Donations
+## Acknowledgements ❤️
 
-Vimm's Lair unfortunately does not accept donations. So you don't need to donate -- just enjoy.
+This project exists because of the incredible work of others:
 
-Vimm's Lair has been preserving classic video game history since 1997. Its mission is to keep retro games accessible for everyone -- a digital museum for the games we grew up with. This project exists to make that experience a little smoother.
+- **[Vimm's Lair](https://vimm.net)** ❤️ -- Preserving classic video game history since 1997. A digital museum for the games we grew up with, kept free and accessible for everyone. This project is a love letter to that mission.
 
-Made with love for the community.
+- **[bucanero/ps3iso-utils](https://github.com/bucanero/ps3iso-utils)** ❤️ -- The `makeps3iso` and `patchps3iso` tools that make PS3 ISO conversion possible. Without these, the entire conversion pipeline wouldn't exist.
+
+- **[NullShield's VimmsDownloader](https://github.com/NullShield-Official/VimmsDownloader)** ❤️ -- The original Python/Selenium downloader that inspired this project. VIMM // DL is a from-scratch .NET rewrite using plain HTTP, but the idea started there.
+
+Please respect Vimm's Lair -- don't abuse download limits and keep single sessions.
 
 ## License
 
 MIT
-
-## Credits
-
-Inspired by [NullShield's VimmsDownloader](https://github.com/NullShield-Official/VimmsDownloader) (Python/Selenium). This is a from-scratch .NET rewrite using plain HTTP instead of browser automation. PS3 ISO tools by [bucanero/ps3iso-utils](https://github.com/bucanero/ps3iso-utils).
-
-Please respect Vimm's Lair -- don't abuse download limits and keep single sessions.

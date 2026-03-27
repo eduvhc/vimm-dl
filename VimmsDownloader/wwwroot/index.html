@@ -9,12 +9,13 @@
         *{box-sizing:border-box;margin:0;padding:0}
         :root{
             --bg:#1a1d27;--surface:#222637;--surface2:#2a2f42;--surface3:#323750;
-            --card:#262b3e;--card-hover:#2e3348;--card-active:#1e2a1e;
+            --card:#262b3e;--card-hover:#2e3348;
             --border:#353b52;--border-light:#424966;
             --accent:#5eead4;--accent2:#2dd4bf;
             --green:#4ade80;--green-bg:rgba(74,222,128,0.08);--green-border:rgba(74,222,128,0.2);
             --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.08);
             --red:#fb7185;--red-bg:rgba(251,113,133,0.06);
+            --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.1);
             --text:#f1f5f9;--text2:#cbd5e1;--text3:#8b95ad;--text4:#5c6480;
             --sans:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
             --r:10px;--rs:6px;
@@ -29,10 +30,9 @@
         .dot.on{background:var(--green);box-shadow:0 0 8px rgba(74,222,128,0.4)}
         .dot.off{background:var(--red)}.dot.warn{background:var(--amber)}
 
-
         /* Add bar */
         .add-bar{display:flex;gap:6px;padding:6px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
-        .ta{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--rs);color:var(--text2);font-family:var(--mono);font-size:11px;padding:6px 8px;resize:none;height:30px;outline:none;transition:all 0.2s}
+        .ta{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--rs);color:var(--text2);font-family:var(--mono);font-size:11px;padding:6px 8px;resize:none;height:30px;outline:none;transition:border-color 0.2s,height 0.2s}
         .ta:focus{border-color:var(--accent2);color:var(--text);height:60px}
         .ta::placeholder{color:var(--text4)}
         .btn-add{background:var(--accent2);color:#0f172a;border:none;font-weight:700;padding:6px 16px;border-radius:var(--rs);cursor:pointer;font-size:11px;font-family:var(--sans)}
@@ -40,7 +40,7 @@
 
         /* Controls */
         .ctrls{display:flex;gap:4px;padding:6px 20px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
-        .cb{font-family:var(--sans);font-size:11px;font-weight:600;border-radius:var(--rs);padding:6px 16px;cursor:pointer;border:1px solid;background:transparent;transition:all 0.15s}
+        .cb{font-family:var(--sans);font-size:11px;font-weight:600;border-radius:var(--rs);padding:6px 16px;cursor:pointer;border:1px solid;background:transparent;transition:background 0.15s,color 0.15s}
         .cb:disabled{opacity:0.2;cursor:not-allowed}
         .cb-go{color:var(--green);border-color:var(--green-border);flex:1}
         .cb-go:hover:not(:disabled){background:var(--green-bg)}
@@ -51,7 +51,7 @@
         .cb-clr{color:var(--text4);border-color:var(--border)}
         .cb-clr:hover{color:var(--text3);background:var(--surface)}
 
-        /* Errors */
+        /* Alerts */
         .errs{display:none;padding:6px 20px;background:rgba(248,113,113,0.05);border-bottom:1px solid rgba(248,113,113,0.15);font-size:11px;color:var(--red);font-family:var(--mono);max-height:50px;overflow-y:auto;flex-shrink:0}
         .errs.show{display:block}
         .update-bar{display:none;padding:8px 20px;background:rgba(94,234,212,0.06);border-bottom:1px solid rgba(94,234,212,0.15);font-size:12px;color:var(--accent);flex-shrink:0;align-items:center;gap:10px}
@@ -61,121 +61,103 @@
 
         /* Section headers */
         .sec{display:flex;align-items:center;justify-content:space-between;padding:6px 20px;flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text4)}
-        .sec .cnt{font-family:var(--mono);font-size:11px;color:var(--text3);background:var(--surface2);padding:1px 8px;border-radius:12px}
+        .sec .cnt{font-family:var(--mono);font-size:11px;color:var(--text3);background:var(--surface2);padding:1px 8px;border-radius:12px;margin-left:6px}
         .sec-right{display:flex;align-items:center;gap:8px}
-        .sec-btn{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 10px;border-radius:12px;cursor:pointer;border:1px solid;background:transparent;text-transform:uppercase;letter-spacing:0.5px;transition:all 0.15s}
-        .sec-btn:hover{transform:scale(1.05)}
-        .sec-btn:disabled{opacity:0.3;cursor:not-allowed;transform:none}
+        .sec-btn{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 10px;border-radius:12px;cursor:pointer;border:1px solid;background:transparent;text-transform:uppercase;letter-spacing:0.5px;transition:background 0.15s}
+        .sec-btn:hover{background:var(--surface2)}
+        .sec-btn:disabled{opacity:0.3;cursor:not-allowed}
 
-        /* Queue — uTorrent style */
-        .queue{flex:1;overflow-y:auto;padding:0 12px 8px;min-height:0}
-        .qi{display:flex;align-items:stretch;gap:12px;padding:10px 14px;margin-bottom:3px;background:var(--card);border-radius:var(--r);border:1px solid transparent;transition:all 0.15s;position:relative;overflow:hidden}
-        .qi:hover{background:var(--card-hover);border-color:var(--border)}
-        /* Active item highlight */
-        .qi.active{border-color:var(--green-border);background:linear-gradient(135deg,rgba(74,222,128,0.04),rgba(74,222,128,0.01))}
-        .qi.paused{border-color:rgba(251,191,36,0.2);background:linear-gradient(135deg,rgba(251,191,36,0.04),rgba(251,191,36,0.01))}
-        .qi-body{flex:1;min-width:0}
-        .qi-r1{display:flex;align-items:center;gap:8px;margin-bottom:2px}
-        .qi-title{font-weight:600;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-        .qi-badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;text-transform:uppercase;letter-spacing:0.3px;flex-shrink:0}
-        .qi-badge.dl{background:var(--green-bg);color:var(--green)}
-        .qi-badge.paused{background:var(--amber-bg);color:var(--amber)}
-        .qi-badge.resuming{background:var(--amber-bg);color:var(--amber)}
-        .qi-pct{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--green);flex-shrink:0}
-        .qi-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);margin-bottom:2px}
-        .qi-plat{display:inline-flex;align-items:center;gap:6px;color:var(--text2);font-weight:500}
-        .qi-icon{width:28px;height:28px;display:inline-block;flex-shrink:0;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center}
-        .qi-icon.ic-ps{background:#3b82f6}
-        .qi-icon.ic-nintendo{background:#ef4444}
-        .qi-icon.ic-sega{background:#3b82f6}
-        .qi-icon.ic-xbox{background:#22c55e}
-        .qi-icon.ic-default{background:var(--text3)}
-        .qi-size{color:var(--accent2);font-family:var(--mono);font-weight:600;font-size:11px}
-        /* Inline progress */
-        .qi-prog{margin-top:6px}
-        .qi-prog-info{display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px}
-        .qi-prog-size{color:var(--text3);font-family:var(--mono)}
-        .qi-prog-track{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
-        .qi-prog-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--green));border-radius:2px;transition:width 0.4s ease}
-        .qi-prog-fill.paused{background:linear-gradient(90deg,#d97706,var(--amber))}
-        /* Partial (not active) */
-        .qi-partial{margin-top:4px}
-        .qi-partial-txt{font-size:10px;color:var(--amber);font-family:var(--mono);font-weight:500}
-        .qi-partial-track{height:3px;background:var(--surface2);border-radius:2px;margin-top:2px;overflow:hidden}
-        .qi-partial-fill{height:100%;background:var(--amber);border-radius:2px}
-        .qi-acts{display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:center}
-        .qi-b{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;transition:all 0.15s;border:none}
-        .qi-play{background:var(--green-bg);color:var(--green);font-size:13px}
-        .qi-play:hover{background:rgba(74,222,128,0.2);transform:scale(1.1)}
-        .qi-pause-btn{background:var(--amber-bg);color:var(--amber);font-size:13px;position:relative;width:30px;height:30px}
-        .qi-pause-btn::before,.qi-pause-btn::after{content:'';position:absolute;top:9px;width:3px;height:12px;background:var(--amber);border-radius:1px}
-        .qi-pause-btn::before{left:10px}
-        .qi-pause-btn::after{right:10px}
-        .qi-pause-btn:hover{background:rgba(251,191,36,0.2);transform:scale(1.1)}
-        .qi-resume-btn{background:var(--green-bg);color:var(--green);font-size:13px;box-shadow:0 0 12px rgba(74,222,128,0.2)}
-        .qi-resume-btn:hover{background:rgba(74,222,128,0.25);transform:scale(1.1)}
-        .qi-x{background:transparent;color:var(--text4);font-size:11px}
-        .qi-x:hover{background:var(--red-bg);color:var(--red);transform:scale(1.1)}
-        .qi-fmt{display:inline-flex;align-items:center;gap:4px;margin-left:8px}
-        .qi-fmt select{background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--rs);font-family:var(--mono);font-size:10px;padding:1px 4px;cursor:pointer;outline:none}
-        .qi-fmt select:hover{border-color:var(--accent2)}
-        .qi-fmt select:focus{border-color:var(--accent2)}
-        .qi-mv{background:transparent;color:var(--text4);font-size:10px;width:22px;height:22px}
-        .qi-mv:hover{background:var(--surface3);color:var(--text2);transform:scale(1.1)}
-        .qi-mv:disabled{opacity:0.15;cursor:not-allowed;transform:none}
-        .q-empty{color:var(--text4);padding:40px;text-align:center;font-size:13px}
+        /* Shared item styles */
+        .item{display:flex;align-items:stretch;gap:12px;padding:10px 14px;margin-bottom:3px;background:var(--card);border-radius:var(--r);border:1px solid transparent;transition:background 0.15s,border-color 0.15s;position:relative;overflow:hidden}
+        .item:hover{background:var(--card-hover);border-color:var(--border)}
+        .item.active{border-color:var(--green-border);background:linear-gradient(135deg,rgba(74,222,128,0.04),rgba(74,222,128,0.01))}
+        .item.paused-state{border-color:rgba(251,191,36,0.2);background:linear-gradient(135deg,rgba(251,191,36,0.04),rgba(251,191,36,0.01))}
+        .item-body{flex:1;min-width:0}
+        .item-r1{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+        .item-title{font-weight:600;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+        .badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;text-transform:uppercase;letter-spacing:0.3px;flex-shrink:0}
+        .badge-dl{background:var(--green-bg);color:var(--green)}
+        .badge-pause{background:var(--amber-bg);color:var(--amber)}
+        .badge-queue{background:var(--surface2);color:var(--text4)}
+        .badge-extract{background:var(--amber-bg);color:var(--amber)}
+        .badge-convert{background:var(--blue-bg);color:var(--blue)}
+        .badge-done{background:var(--green-bg);color:var(--green)}
+        .badge-error{background:var(--red-bg);color:var(--red)}
+        .badge-skip{background:var(--surface2);color:var(--text4)}
+        .item-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);margin-bottom:2px}
+        .item-plat{display:inline-flex;align-items:center;gap:6px;color:var(--text2);font-weight:500}
+        .item-icon{width:28px;height:28px;display:inline-block;flex-shrink:0;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center}
+        .item-icon.ic-ps{background:#3b82f6}.item-icon.ic-nintendo{background:#ef4444}.item-icon.ic-sega{background:#3b82f6}.item-icon.ic-xbox{background:#22c55e}.item-icon.ic-default{background:var(--text3)}
+        .item-size{color:var(--accent2);font-family:var(--mono);font-weight:600;font-size:11px;font-variant-numeric:tabular-nums}
+        .pct{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--green);flex-shrink:0;font-variant-numeric:tabular-nums}
 
-        /* PS3 Conversion */
-        .conv{overflow-y:auto;padding:0 12px 8px;max-height:28vh;flex-shrink:0}
-        .ci{display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:3px;background:var(--card);border-radius:var(--rs);font-size:12px;transition:all 0.15s;border:1px solid transparent}
-        .ci:hover{background:var(--card-hover);border-color:var(--border)}
-        .ci.ci-active{border-color:rgba(251,191,36,0.2)}
-        .ci-phase{font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 10px;border-radius:12px;text-transform:uppercase;letter-spacing:0.3px;flex-shrink:0;min-width:85px;text-align:center}
-        .ci-phase.queued{background:var(--surface2);color:var(--text4)}
-        .ci-phase.extracting{background:var(--amber-bg);color:var(--amber)}
-        .ci-phase.extracted{background:var(--amber-bg);color:var(--amber)}
-        .ci-phase.converting{background:rgba(96,165,250,0.1);color:#60a5fa}
-        .ci-phase.done{background:var(--green-bg);color:var(--green)}
-        .ci-phase.error{background:var(--red-bg);color:var(--red)}
-        .ci-phase.skipped{background:var(--surface2);color:var(--text4)}
-        .ci-info{flex:1;min-width:0}
-        .ci-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
-        .ci-detail{display:flex;align-items:center;gap:8px;margin-top:3px}
-        .ci-msg{font-size:10px;color:var(--text4);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .ci-msg.err{color:var(--red)}
-        .ci-bar{flex:1;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;max-width:200px}
-        .ci-bar-fill{height:100%;border-radius:2px;transition:width 0.3s ease}
-        .ci-bar-fill.extract{background:var(--amber)}
-        .ci-bar-fill.convert{background:#60a5fa}
-        .ci-pct{font-family:var(--mono);font-size:11px;font-weight:700;flex-shrink:0}
-        .ci-pct.extract{color:var(--amber)}
-        .ci-pct.convert{color:#60a5fa}
-        .ci-acts{display:flex;gap:4px;flex-shrink:0}
-        .ci-btn{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;border:none;font-size:11px;transition:all 0.15s}
-        .ci-retry{background:var(--amber-bg);color:var(--amber)}
-        .ci-retry:hover{background:rgba(251,191,36,0.2);transform:scale(1.1)}
-        .ci-dismiss{background:transparent;color:var(--text4)}
-        .ci-dismiss:hover{background:var(--surface2);color:var(--text3);transform:scale(1.1)}
-        .conv-empty{color:var(--text4);padding:16px;text-align:center;font-size:12px}
+        /* Progress */
+        .prog{margin-top:6px}
+        .prog-info{display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px}
+        .prog-size{color:var(--text3);font-family:var(--mono);font-variant-numeric:tabular-nums}
+        .prog-track{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+        .prog-fill{height:100%;border-radius:2px;transition:width 0.4s ease}
+        .prog-fill.dl{background:linear-gradient(90deg,var(--accent2),var(--green))}
+        .prog-fill.paused-bar{background:linear-gradient(90deg,#d97706,var(--amber))}
+        .prog-fill.extract{background:var(--amber)}
+        .prog-fill.convert{background:var(--blue)}
 
-        /* Completed */
-        .done{overflow-y:auto;padding:0 12px 8px;max-height:22vh;flex-shrink:0}
-        .di{display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:2px;border-radius:var(--rs);font-size:12px}
-        .di:hover{background:var(--surface)}
-        .di-num{font-family:var(--mono);font-size:10px;color:var(--green);min-width:20px;font-weight:600}
-        .di-info{flex:1;min-width:0}
-        .di-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .di-path{font-size:10px;color:var(--text4);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
-        .di-path.exists{color:var(--accent2);cursor:pointer}
-        .di-path.exists:hover{text-decoration:underline}
-        .di-path.missing{color:var(--red);font-style:italic}
-        .di-time{color:var(--text4);font-family:var(--mono);font-size:10px;flex-shrink:0}
-        .di-conv{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;border:none;font-size:12px;background:rgba(96,165,250,0.1);color:#60a5fa;flex-shrink:0;transition:all 0.15s}
-        .di-conv:hover{background:rgba(96,165,250,0.2);transform:scale(1.1)}
-        .di-conv:disabled{opacity:0.3;cursor:not-allowed;transform:none}
-        .done-empty{color:var(--text4);padding:16px;text-align:center;font-size:12px}
+        /* Partial */
+        .partial{margin-top:4px}
+        .partial-txt{font-size:10px;color:var(--amber);font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+        .partial-track{height:3px;background:var(--surface2);border-radius:2px;margin-top:2px;overflow:hidden}
+        .partial-fill{height:100%;background:var(--amber);border-radius:2px}
+
+        /* Buttons */
+        .item-acts{display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:center}
+        .ibtn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;transition:background 0.15s,transform 0.15s;border:none}
+        .ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+        .ibtn-play{background:var(--green-bg);color:var(--green);font-size:13px}
+        .ibtn-play:hover{background:rgba(74,222,128,0.2);transform:scale(1.1)}
+        .ibtn-pause{background:var(--amber-bg);color:var(--amber);font-size:13px;position:relative}
+        .ibtn-pause::before,.ibtn-pause::after{content:'';position:absolute;top:9px;width:3px;height:12px;background:var(--amber);border-radius:1px}
+        .ibtn-pause::before{left:10px}.ibtn-pause::after{right:10px}
+        .ibtn-pause:hover{background:rgba(251,191,36,0.2);transform:scale(1.1)}
+        .ibtn-resume{background:var(--green-bg);color:var(--green);font-size:13px;box-shadow:0 0 12px rgba(74,222,128,0.2)}
+        .ibtn-resume:hover{background:rgba(74,222,128,0.25);transform:scale(1.1)}
+        .ibtn-x{background:transparent;color:var(--text4);font-size:11px}
+        .ibtn-x:hover{background:var(--red-bg);color:var(--red);transform:scale(1.1)}
+        .ibtn-mv{background:transparent;color:var(--text4);font-size:10px;width:22px;height:22px}
+        .ibtn-mv:hover{background:var(--surface3);color:var(--text2);transform:scale(1.1)}
+        .ibtn-mv:disabled{opacity:0.15;cursor:not-allowed;transform:none}
+        .ibtn-sm{width:24px;height:24px;font-size:12px}
+        .ibtn-retry{background:var(--amber-bg);color:var(--amber)}
+        .ibtn-retry:hover{background:rgba(251,191,36,0.2);transform:scale(1.1)}
+        .ibtn-conv{background:var(--blue-bg);color:var(--blue)}
+        .ibtn-conv:hover{background:rgba(96,165,250,0.2);transform:scale(1.1)}
+        .ibtn-dismiss{background:transparent;color:var(--text4)}
+        .ibtn-dismiss:hover{background:var(--surface2);color:var(--text3);transform:scale(1.1)}
+
+        /* Format selector */
+        .fmt{display:inline-flex;align-items:center;gap:4px;margin-left:8px}
+        .fmt select{background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--rs);font-family:var(--mono);font-size:10px;padding:1px 4px;cursor:pointer;outline:none;touch-action:manipulation}
+        .fmt select:hover,.fmt select:focus-visible{border-color:var(--accent2)}
+
+        /* History specific */
+        .h-files{margin-top:4px;display:flex;flex-direction:column;gap:2px}
+        .h-file{display:flex;align-items:center;gap:6px;font-size:10px;font-family:var(--mono)}
+        .h-file-label{color:var(--text4);min-width:48px;text-transform:uppercase;font-weight:600;font-size:9px}
+        .h-file-name{color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+        .h-file-name.exists{color:var(--accent2)}
+        .h-file-name.missing{color:var(--red);font-style:italic}
+        .h-file-size{color:var(--text4);font-variant-numeric:tabular-nums;flex-shrink:0}
+        .h-file-check{flex-shrink:0;font-size:11px}
+        .h-file-check.ok{color:var(--green)}
+        .h-file-check.fail{color:var(--red)}
+        .h-time{font-size:10px;color:var(--text4);font-family:var(--mono);margin-top:2px;font-variant-numeric:tabular-nums}
+
+        /* Lists */
+        .list{flex:1;overflow-y:auto;padding:0 12px 8px;min-height:0}
+        .list-fixed{overflow-y:auto;padding:0 12px 8px;max-height:40vh;flex-shrink:0}
+        .empty{color:var(--text4);padding:40px;text-align:center;font-size:13px}
 
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+        @media(prefers-reduced-motion:reduce){.prog-fill,.partial-fill{transition:none}}
     </style>
 </head>
 <body>
@@ -184,7 +166,6 @@
     <div class="logo">VIMM<span>//</span>DL</div>
     <div class="dot on" id="conn-dot"></div>
 </div>
-
 
 <div class="add-bar">
     <textarea class="ta" id="urls" placeholder="Paste vault URLs, one per line..." spellcheck="false"></textarea>
@@ -201,18 +182,16 @@
 <div class="update-bar" id="update-bar"></div>
 <div class="errs" id="err-box"></div>
 
-<div class="sec">Queue <span class="cnt" id="queue-count">0</span></div>
-<div class="queue" id="queue-list"><div class="q-empty">No items in queue</div></div>
+<div class="sec">Active <span class="cnt" id="active-count">0</span></div>
+<div class="list" id="active-list"><div class="empty">No items in queue</div></div>
 
-<div class="sec" id="conv-sec">
-    PS3 ISO Conversion <div class="sec-right"><span class="cnt" id="conv-count">0</span>
-    <button class="sec-btn" style="color:var(--accent);border-color:rgba(94,234,212,0.25)" id="btn-conv-all">Convert All</button>
-    <button class="sec-btn" style="color:var(--text4);border-color:var(--border)" id="btn-conv-clear">Clear Done</button></div>
+<div class="sec">
+    History <span class="cnt" id="history-count">0</span>
+    <div class="sec-right">
+        <button class="sec-btn" style="color:var(--accent);border-color:rgba(94,234,212,0.25)" id="btn-conv-all">Convert All</button>
+    </div>
 </div>
-<div class="conv" id="conv-list"></div>
-
-<div class="sec">Completed <span class="cnt" id="completed-count">0</span></div>
-<div class="done" id="completed-log"><div class="done-empty">No downloads yet</div></div>
+<div class="list-fixed" id="history-list"><div class="empty">No downloads yet</div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
 <script>
@@ -239,15 +218,16 @@ function iconFor(p){
         :k.includes('nintendo')||k.includes('game boy')||k==='nes'||k.includes('snes')||k==='super nintendo'||k.includes('wii')||k==='gamecube'||k==='switch'||k.includes('ds')?'ic-nintendo'
         :k.includes('sega')||k==='genesis'||k==='dreamcast'||k==='saturn'?'ic-sega'
         :k.includes('xbox')?'ic-xbox':'ic-default';
-    return `<span class="qi-icon ${cls}" style="-webkit-mask-image:url(/icons/${f});mask-image:url(/icons/${f})"></span>`;
+    return `<span class="item-icon ${cls}" style="-webkit-mask-image:url(/icons/${f});mask-image:url(/icons/${f})"></span>`;
 }
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function fmtBytes(b){if(!b)return'';if(b>=1073741824)return(b/1073741824).toFixed(2)+' GB';if(b>=1048576)return(b/1048576).toFixed(2)+' MB';return(b/1024).toFixed(2)+' KB'}
 function showError(msg){const el=$('err-box');el.classList.add('show');el.innerHTML+=`<div>${new Date().toLocaleTimeString('en-US',{hour12:false})} ${esc(msg)}</div>`;el.scrollTop=el.scrollHeight}
 
-function setRunning(v){running=v;updateBtns();renderQueue()}
-function setPaused(v){paused=v;updateBtns();renderQueue()}
+function setRunning(v){running=v;updateBtns();renderActive()}
+function setPaused(v){paused=v;updateBtns();renderActive()}
 function updateBtns(){
-    const has=$('queue-count').textContent!=='0';
+    const has=$('active-count').textContent!=='0';
     $('btn-start').disabled=running&&!paused;$('btn-start').textContent=paused?'Resume':'Start';
     if(!has&&!paused)$('btn-start').disabled=true;
     $('btn-pause').disabled=!running;$('btn-stop').disabled=!running&&!paused;
@@ -263,19 +243,32 @@ async function loadConfig(silent){
 async function restoreStatus(){
     const s=await(await fetch('/api/status')).json();
     if(s.currentUrl) activeUrl=s.currentUrl;
-    if(s.isRunning){running=true;if(s.progress)parseProgress(s.progress);updateBtns();renderQueue()}
-    if(s.isPaused){paused=true;updateBtns();renderQueue()}
+    if(s.isRunning){running=true;if(s.progress)parseProgress(s.progress);updateBtns();renderActive()}
+    if(s.isPaused){paused=true;updateBtns();renderActive()}
     if(s.recentLogs?.length)s.recentLogs.forEach(l=>{if(l.type==='Error')showError(l.message)});
 }
 
+// --- Data ---
+let queuedItems=[],historyItems=[],convStatuses={},metaFetching=new Set();
 
-let queuedItems=[],metaFetching=new Set();
-async function loadData(){
-    const d=await(await fetch('/api/data')).json();
-    try{const p=await(await fetch('/api/partials')).json();partialsCache={};(p.files||[]).forEach(f=>{partialsCache[f.name]=f})}catch{}
+let _loadPending=false,_loadInFlight=false;
+function loadData(){
+    if(_loadInFlight){_loadPending=true;return}
+    _loadInFlight=true;_loadPending=false;
+    _loadDataImpl().finally(()=>{_loadInFlight=false;if(_loadPending)loadData()});
+}
+async function _loadDataImpl(){
+    const [d,p]=await Promise.all([
+        fetch('/api/data').then(r=>r.json()),
+        fetch('/api/partials').then(r=>r.json()).catch(()=>({files:[]}))
+    ]);
+    partialsCache={};(p.files||[]).forEach(f=>{partialsCache[f.name]=f});
     queuedItems=d.queued.map(it=>{if(it.formats&&typeof it.formats==='string')try{it.formats=JSON.parse(it.formats)}catch{it.formats=null};return it});
-    renderQueue();renderCompleted(d.completed);
-    // Fetch missing metadata sequentially to avoid rate-limiting vimm.net
+    historyItems=d.history||[];
+    // Update conv statuses from history
+    historyItems.forEach(h=>{if(h.convPhase)convStatuses[h.filename]={zipName:h.filename,phase:h.convPhase,message:h.convMessage||''}});
+    renderActive();renderHistory();
+    // Fetch missing metadata sequentially
     const miss=d.queued.filter(it=>!it.title&&!metaFetching.has(it.url));
     if(miss.length){
         (async()=>{
@@ -284,224 +277,228 @@ async function loadData(){
                 metaFetching.add(it.url);
                 const m=await fetchMeta(it.url);
                 metaFetching.delete(it.url);
-                if(m){const qi=queuedItems.find(q=>q.url===it.url);if(qi){qi.title=m.title;qi.platform=m.platform;qi.size=m.size;qi.formats=m.formats}renderQueue()}
+                if(m){const qi=queuedItems.find(q=>q.url===it.url);if(qi){qi.title=m.title;qi.platform=m.platform;qi.size=m.size;qi.formats=m.formats}renderActive()}
             }
         })();
     }
 }
 
-function renderQueue(){
-    const items=queuedItems,el=$('queue-list');$('queue-count').textContent=items.length;
-    if(!items.length){el.innerHTML='<div class="q-empty">No items in queue</div>';updateBtns();return}
-    el.innerHTML=items.map((it,i)=>{
-        const has=!!it.title;
-        const isActive=activeUrl&&it.url===activeUrl&&running&&!paused;
-        const isPaused=activeUrl&&it.url===activeUrl&&paused;
-        const title=has?esc(it.title):esc(it.url.split('/').pop());
-        const icon=has?iconFor(it.platform):'';
-        const plat=has&&it.platform?`<span class="qi-plat">${icon}${esc(it.platform)}</span>`:'';
-        const fmts=Array.isArray(it.formats)&&it.formats.length>1;
-        const curFmt=it.format||0;
-        const fmtSize=fmts?it.formats.find(f=>f.value===curFmt)?.size||it.size:it.size;
-        const size=has&&fmtSize?`<span class="qi-size">${esc(fmtSize)}</span>`:'';
-        const fmtSelect=fmts?`<span class="qi-fmt"><select onchange="setItemFormat(${it.id},+this.value)">${it.formats.map(f=>`<option value="${f.value}"${f.value===curFmt?' selected':''}>${esc(f.label)}</option>`).join('')}</select></span>`:'';
-        const meta=(plat||size||fmtSelect)?`<div class="qi-meta">${plat}${fmtSelect}${size}</div>`:(has?'':`<div class="qi-meta" style="color:var(--text4)">${esc(it.url)}</div>`);
+// --- Active Section ---
+// Merges: queue items + items being extracted/converted (from convStatuses)
 
-        let badge='',pctText='',progHtml='';
-        if(isActive&&activeDlInfo){
-            badge='<span class="qi-badge dl">Downloading</span>';
-            pctText=`<span class="qi-pct">${activeDlInfo.pct}</span>`;
-            progHtml=`<div class="qi-prog"><div class="qi-prog-info"><span class="qi-prog-size">${activeDlInfo.size}</span></div><div class="qi-prog-track"><div class="qi-prog-fill" style="width:${activeDlInfo.width}"></div></div></div>`;
-        } else if(isPaused&&activeDlInfo){
-            badge='<span class="qi-badge paused">Paused</span>';
-            pctText=`<span class="qi-pct" style="color:var(--amber)">${activeDlInfo.pct}</span>`;
-            progHtml=`<div class="qi-prog"><div class="qi-prog-info"><span class="qi-prog-size">${activeDlInfo.size}</span></div><div class="qi-prog-track"><div class="qi-prog-fill paused" style="width:${activeDlInfo.width}"></div></div></div>`;
-        } else if(isActive||isPaused){
-            badge=isActive?'<span class="qi-badge resuming">Starting</span>':'<span class="qi-badge paused">Paused</span>';
-        } else if(has&&it.size&&!(activeUrl&&it.url===activeUrl)){
-            // Check for partial file (skip the actively downloading item — it has its own progress)
+function renderActive(){
+    const el=$('active-list');
+
+    // Items actively converting (not in queue)
+    const convertingItems=Object.values(convStatuses)
+        .filter(c=>c.phase==='queued'||c.phase==='extracting'||c.phase==='extracted'||c.phase==='converting')
+        .map(c=>({type:'conv',data:c}));
+
+    // Queue items
+    const queueItems=queuedItems.map(it=>({type:'queue',data:it}));
+
+    // Merge: downloading item first, then converting, then queued
+    const allActive=[...queueItems,...convertingItems.filter(c=>!queuedItems.some(q=>q.url===c.data.zipName))];
+    $('active-count').textContent=allActive.length;
+
+    if(!allActive.length){el.innerHTML='<div class="empty">No items in queue</div>';updateBtns();return}
+
+    el.innerHTML=allActive.map((entry,i)=>{
+        if(entry.type==='conv') return renderConvItem(entry.data);
+        return renderQueueItem(entry.data,i,queuedItems.length);
+    }).join('');
+    updateBtns();
+}
+
+function renderQueueItem(it,i,total){
+    const has=!!it.title;
+    const isActive=activeUrl&&it.url===activeUrl&&running&&!paused;
+    const isPaused=activeUrl&&it.url===activeUrl&&paused;
+    const title=has?esc(it.title):esc(it.url.split('/').pop());
+    const icon=has?iconFor(it.platform):'';
+    const plat=has&&it.platform?`<span class="item-plat">${icon}${esc(it.platform)}</span>`:'';
+    const fmts=Array.isArray(it.formats)&&it.formats.length>1;
+    const curFmt=it.format||0;
+    const fmtSize=fmts?it.formats.find(f=>f.value===curFmt)?.size||it.size:it.size;
+    const size=has&&fmtSize?`<span class="item-size">${esc(fmtSize)}</span>`:'';
+    const fmtSelect=fmts?`<span class="fmt"><select onchange="setItemFormat(${it.id},+this.value)">${it.formats.map(f=>`<option value="${f.value}"${f.value===curFmt?' selected':''}>${esc(f.label)}</option>`).join('')}</select></span>`:'';
+    const meta=(plat||size||fmtSelect)?`<div class="item-meta">${plat}${fmtSelect}${size}</div>`:(has?'':`<div class="item-meta" style="color:var(--text4)">${esc(it.url)}</div>`);
+
+    let badge='',pctText='',progHtml='';
+    if(isActive&&activeDlInfo){
+        badge='<span class="badge badge-dl">Downloading</span>';
+        pctText=`<span class="pct">${activeDlInfo.pct}</span>`;
+        progHtml=`<div class="prog"><div class="prog-info"><span class="prog-size">${activeDlInfo.size}</span></div><div class="prog-track"><div class="prog-fill dl" style="width:${activeDlInfo.width}"></div></div></div>`;
+    } else if(isPaused&&activeDlInfo){
+        badge='<span class="badge badge-pause">Paused</span>';
+        pctText=`<span class="pct" style="color:var(--amber)">${activeDlInfo.pct}</span>`;
+        progHtml=`<div class="prog"><div class="prog-info"><span class="prog-size">${activeDlInfo.size}</span></div><div class="prog-track"><div class="prog-fill paused-bar" style="width:${activeDlInfo.width}"></div></div></div>`;
+    } else if(isActive) badge='<span class="badge badge-dl">Starting</span>';
+    else if(isPaused) badge='<span class="badge badge-pause">Paused</span>';
+    else {
+        badge='<span class="badge badge-queue">Queued</span>';
+        // Partial file check
+        if(has&&it.size){
             const sz=it.size.match(/([\d.]+)\s*(GB|MB)/i);
             if(sz){const totalMB=sz[2].toUpperCase()==='GB'?parseFloat(sz[1])*1024:parseFloat(sz[1]);
-                // Match partial filename using the vault URL slug (unique per game) instead of title prefix
                 const slug=it.url.split('/').pop();
                 const hit=slug?Object.keys(partialsCache).find(n=>{
-                    // Try slug match first, then full title match (not prefix)
                     const nl=n.toLowerCase(),tl=it.title.toLowerCase();
                     return nl.includes(slug.toLowerCase())||nl.includes(tl)||tl.includes(nl.replace(/\.[^.]+$/,''))
                 }):null;
-                if(hit){const pf=partialsCache[hit],pct=totalMB>0?(pf.mb/totalMB*100):0;if(pct>0.1&&pct<100)progHtml=`<div class="qi-partial"><span class="qi-partial-txt">${pf.mb.toFixed(2)} / ${totalMB.toFixed(2)} MB \u00b7 ${pct.toFixed(2)}%</span><div class="qi-partial-track"><div class="qi-partial-fill" style="width:${Math.min(pct,100).toFixed(2)}%"></div></div></div>`}}
+                if(hit){const pf=partialsCache[hit],pct=totalMB>0?(pf.mb/totalMB*100):0;if(pct>0.1&&pct<100)progHtml=`<div class="partial"><span class="partial-txt">${pf.mb.toFixed(2)} / ${totalMB.toFixed(2)} MB \u00b7 ${pct.toFixed(2)}%</span><div class="partial-track"><div class="partial-fill" style="width:${Math.min(pct,100).toFixed(2)}%"></div></div></div>`}}
         }
+    }
 
-        const cls=isActive?'qi active':isPaused?'qi paused':'qi';
-        let actionBtn;
-        if(isActive) actionBtn=`<button class="qi-b qi-pause-btn" onclick="pauseItem()" title="Pause"></button>`;
-        else if(isPaused) actionBtn=`<button class="qi-b qi-resume-btn" onclick="resumeItem()" title="Resume">&#9654;</button>`;
-        else actionBtn=`<button class="qi-b qi-play" onclick="playItem(${it.id})" title="Download this">&#9654;</button>`;
+    const cls=isActive?'item active':isPaused?'item paused-state':'item';
+    let actionBtn;
+    if(isActive) actionBtn=`<button class="ibtn ibtn-pause" onclick="pauseItem()" title="Pause"></button>`;
+    else if(isPaused) actionBtn=`<button class="ibtn ibtn-resume" onclick="resumeItem()" title="Resume">&#9654;</button>`;
+    else actionBtn=`<button class="ibtn ibtn-play" onclick="playItem(${it.id})" title="Download this">&#9654;</button>`;
 
-        const isFirst=i===0, isLast=i===items.length-1;
-        return `<div class="${cls}">
-            <div class="qi-acts">
-                <button class="qi-b qi-mv" onclick="moveItem(${it.id},'up')" title="Move up" ${isFirst?'disabled':''}>&#9650;</button>
-                <button class="qi-b qi-mv" onclick="moveItem(${it.id},'down')" title="Move down" ${isLast?'disabled':''}>&#9660;</button>
-            </div>
-            <div class="qi-body">
-                <div class="qi-r1">${pctText}<span class="qi-title">${title}</span>${badge}</div>
-                ${meta}${progHtml}
-            </div>
-            <div class="qi-acts">
-                ${actionBtn}
-                <button class="qi-b qi-x" onclick="rmItem(${it.id})" title="Remove">&#10005;</button>
-            </div>
-        </div>`;
-    }).join('');
+    return `<div class="${cls}">
+        <div class="item-acts">
+            <button class="ibtn ibtn-mv" onclick="moveItem(${it.id},'up')" title="Move up" ${i===0?'disabled':''}>&#9650;</button>
+            <button class="ibtn ibtn-mv" onclick="moveItem(${it.id},'down')" title="Move down" ${i===total-1?'disabled':''}>&#9660;</button>
+        </div>
+        <div class="item-body">
+            <div class="item-r1">${pctText}<span class="item-title">${title}</span>${badge}</div>
+            ${meta}${progHtml}
+        </div>
+        <div class="item-acts">
+            ${actionBtn}
+            <button class="ibtn ibtn-x" onclick="rmItem(${it.id})" title="Remove">&#10005;</button>
+        </div>
+    </div>`;
 }
 
-function renderCompleted(items){
-    const el=$('completed-log');$('completed-count').textContent=items.length;
-    if(!items.length){el.innerHTML='<div class="done-empty">No downloads yet</div>';return}
-    const archiveExts=['.zip','.7z','.rar'];
-    el.innerHTML=items.map((it,i)=>{
-        const path=it.filepath||'';
-        const isArchive=archiveExts.some(e=>it.filename.toLowerCase().endsWith(e));
-        const cs=convStatuses[it.filename];
-        const isDone=cs&&cs.phase==='done';
-        const isActive=cs&&(cs.phase==='queued'||cs.phase==='extracting'||cs.phase==='extracted'||cs.phase==='converting');
-        let convBtns='';
-        const fnAttr=`data-fn="${esc(it.filename)}"`;
-        if(isArchive&&!isActive){
-            if(isDone) convBtns=`<span style="color:var(--green);font-size:12px" title="Converted">&#10003;</span><button class="di-conv" ${fnAttr} onclick="convertSingle(this.dataset.fn)" title="Re-convert">&#9881;</button>`;
-            else convBtns=`<button class="di-conv" ${fnAttr} onclick="convertSingle(this.dataset.fn)" title="Convert to ISO">&#9881;</button><button class="ci-btn ci-dismiss" ${fnAttr} onclick="markDone(this.dataset.fn)" title="Mark as already converted" style="width:24px;height:24px;font-size:12px">&#10003;</button>`;
-        } else if(isArchive&&isActive){
-            convBtns=`<span class="ci-phase ${cs.phase}" style="font-size:8px">${cs.phase}</span>`;
-        }
-        return `<div class="di">
-            <span class="di-num">${String(i+1).padStart(2,'0')}</span>
-            <div class="di-info">
-                <div class="di-name">${esc(it.filename)}</div>
-                ${path?`<div class="di-path" id="dp-${it.id}" data-path="${esc(path)}">${esc(path)}</div>`:''}
-            </div>
-            <div class="di-btns" style="display:flex;gap:4px;align-items:center">${convBtns}</div>
-        </div>`;
-    }).join('');
-    // Check which files still exist
-    items.forEach(it=>{
-        if(!it.filepath)return;
-        const el=document.getElementById('dp-'+it.id);
-        if(!el)return;
-        fetch('/api/check-exists?filename='+encodeURIComponent(it.filename)+'&filepath='+encodeURIComponent(it.filepath)).then(r=>r.json()).then(d=>{
-            if(d.exists){el.classList.add('exists');el.title='File exists: '+d.path}
-            else{
-                el.classList.add('missing');el.title=it.filepath;
-                // Replace the whole row content with "file removed" + delete button
-                const row=el.closest('.di');
-                if(row){
-                    const btns=row.querySelector('.di-btns');
-                    if(btns) btns.innerHTML=it.id?`<button class="ci-btn ci-dismiss" onclick="removeCompleted(${it.id})" title="Remove entry">&#10005;</button>`:'';
-                }
-                el.textContent='File removed';
+function renderConvItem(conv){
+    const isExtracting=conv.phase==='extracting';
+    const isConverting=conv.phase==='converting';
+    const pctMatch=conv.message.match(/(\d+)%/);
+    const pct=pctMatch?parseInt(pctMatch[1]):null;
+    const badgeText=pct!==null&&isExtracting?`Extract ${pct}%`:isExtracting?'Extracting':isConverting?'Converting':conv.phase==='extracted'?'Waiting':'Processing';
+    const badgeCls=isExtracting||conv.phase==='extracted'?'badge-extract':'badge-convert';
+
+    let progHtml='';
+    if(pct!==null){
+        const cls=isExtracting?'extract':'convert';
+        progHtml=`<div class="prog"><div class="prog-track"><div class="prog-fill ${cls}" style="width:${pct}%"></div></div></div>`;
+    }
+
+    const fnAttr=`data-fn="${esc(conv.zipName)}"`;
+    return `<div class="item" style="border-color:rgba(251,191,36,0.2)">
+        <div class="item-body">
+            <div class="item-r1"><span class="item-title">${esc(conv.zipName)}</span><span class="badge ${badgeCls}">${badgeText}</span></div>
+            ${progHtml}
+        </div>
+        <div class="item-acts">
+            <button class="ibtn ibtn-sm" style="background:var(--red-bg);color:var(--red)" ${fnAttr} onclick="abortConvert(this.dataset.fn)" title="Abort">&#9632;</button>
+        </div>
+    </div>`;
+}
+
+// --- History Section ---
+
+function renderHistory(){
+    const el=$('history-list');
+    $('history-count').textContent=historyItems.length;
+    if(!historyItems.length){el.innerHTML='<div class="empty">No downloads yet</div>';return}
+
+    el.innerHTML=historyItems.map(it=>{
+        const title=it.title?esc(it.title):esc(it.filename);
+        const icon=it.platform?iconFor(it.platform):'';
+        const plat=it.platform?`<span class="item-plat">${icon}${esc(it.platform)}</span>`:'';
+        const isPs3=it.platform&&it.platform.toLowerCase()==='playstation 3';
+
+        // Archive row
+        const archiveCheck=it.fileExists?'<span class="h-file-check ok">&#10003;</span>':'<span class="h-file-check fail">&#10007;</span>';
+        const archiveName=it.fileExists?'exists':'missing';
+        const archiveRow=`<div class="h-file">${archiveCheck}<span class="h-file-label">Archive</span><span class="h-file-name ${archiveName}" title="${esc(it.filepath||it.filename)}">${esc(it.filename)}</span><span class="h-file-size">${fmtBytes(it.fileSize)}</span></div>`;
+
+        // ISO row (PS3 only)
+        let isoRow='';
+        if(isPs3){
+            const conv=convStatuses[it.filename];
+            const phase=conv?.phase||it.convPhase;
+
+            if(it.isoExists&&it.isoFilename){
+                isoRow=`<div class="h-file"><span class="h-file-check ok">&#10003;</span><span class="h-file-label">ISO</span><span class="h-file-name exists" title="${esc(it.isoFilename)}">${esc(it.isoFilename)}</span><span class="h-file-size">${fmtBytes(it.isoSize)}</span></div>`;
+            } else if(phase==='done'){
+                isoRow=`<div class="h-file"><span class="h-file-check ok">&#10003;</span><span class="h-file-label">ISO</span><span class="h-file-name exists">${esc(conv?.message||it.convMessage||'Converted')}</span></div>`;
+            } else if(phase==='extracting'||phase==='converting'||phase==='queued'||phase==='extracted'){
+                const label=phase==='extracting'?'Extracting\u2026':phase==='converting'?'Converting\u2026':'Queued\u2026';
+                isoRow=`<div class="h-file"><span class="h-file-check" style="color:var(--amber)">\u25CB</span><span class="h-file-label">ISO</span><span class="h-file-name" style="color:var(--amber)">${label}</span></div>`;
+            } else if(phase==='error'){
+                const fnAttr=`data-fn="${esc(it.filename)}"`;
+                isoRow=`<div class="h-file"><span class="h-file-check fail">&#10007;</span><span class="h-file-label">ISO</span><span class="h-file-name" style="color:var(--red)">${esc(conv?.message||it.convMessage||'Failed')}</span><button class="ibtn ibtn-sm ibtn-retry" ${fnAttr} onclick="retryConvert(this.dataset.fn)" title="Retry">&#8635;</button></div>`;
+            } else if(phase==='skipped'){
+                isoRow=`<div class="h-file"><span class="h-file-check" style="color:var(--text4)">\u2014</span><span class="h-file-label">ISO</span><span class="h-file-name" style="color:var(--text4)">Skipped (not PS3 JB folder)</span></div>`;
+            } else {
+                // No conversion attempted
+                const fnAttr=`data-fn="${esc(it.filename)}"`;
+                isoRow=`<div class="h-file"><span class="h-file-check" style="color:var(--text4)">\u2014</span><span class="h-file-label">ISO</span><span class="h-file-name" style="color:var(--text4)">Not converted</span><button class="ibtn ibtn-sm ibtn-conv" ${fnAttr} onclick="convertSingle(this.dataset.fn)" title="Convert to ISO">&#9881;</button><button class="ibtn ibtn-sm ibtn-dismiss" ${fnAttr} onclick="markDone(this.dataset.fn)" title="Mark as already converted">&#10003;</button></div>`;
             }
-        }).catch(()=>{});
-    });
-    el.scrollTop=el.scrollHeight;
-}
-
-// --- PS3 Conversion UI ---
-
-const convStatuses={};
-
-function renderConversions(){
-    const entries=Object.values(convStatuses);
-    const sec=$('conv-sec');
-    const el=$('conv-list');
-
-    // Sort: active first (extracting/converting), then queued/extracted, then error, then done/skipped
-    const order={extracting:0,converting:1,queued:2,extracted:3,error:4,done:5,skipped:6};
-    entries.sort((a,b)=>(order[a.phase]??9)-(order[b.phase]??9));
-
-    const active=entries.filter(e=>e.phase!=='done'&&e.phase!=='skipped');
-    $('conv-count').textContent=active.length||entries.length;
-
-    if(!entries.length){el.innerHTML='<div class="conv-empty">No conversions. Click Convert All to process completed PS3 archives.</div>';return}
-
-    el.innerHTML=entries.map(it=>{
-        const isErr=it.phase==='error';
-        const isDone=it.phase==='done';
-        const isSkipped=it.phase==='skipped';
-        const isExtracting=it.phase==='extracting';
-        const isConverting=it.phase==='converting';
-        const isActive=isExtracting||isConverting||it.phase==='extracted';
-        const canRetry=isErr||isSkipped;
-        const canDismiss=isDone||isSkipped||isErr;
-
-        const fnAttr2=`data-fn="${esc(it.zipName)}"`;
-        let acts='';
-        if(isActive) acts+=`<button class="ci-btn" style="background:var(--red-bg);color:var(--red)" ${fnAttr2} onclick="abortConvert(this.dataset.fn)" title="Abort">&#9632;</button>`;
-        if(canRetry) acts+=`<button class="ci-btn ci-retry" ${fnAttr2} onclick="retryConvert(this.dataset.fn)" title="Retry">&#8635;</button>`;
-        if(canDismiss) acts+=`<button class="ci-btn ci-dismiss" ${fnAttr2} onclick="dismissConvert(this.dataset.fn)" title="Dismiss">&#10005;</button>`;
-
-        // Parse percentage from message
-        const pctMatch=it.message.match(/(\d+)%/);
-        const pct=pctMatch?parseInt(pctMatch[1]):null;
-
-        // Badge text: include percentage for active phases
-        const badgeText=pct!==null&&isExtracting?`Extract ${pct}%`
-            :isExtracting?'Extracting'
-            :isConverting?'Converting'
-            :it.phase==='extracted'?'Waiting'
-            :it.phase;
-
-        // Progress bar for active phases
-        let detailHtml='';
-        if(pct!==null&&(isExtracting||isConverting)){
-            const cls=isExtracting?'extract':'convert';
-            detailHtml=`<div class="ci-detail"><div class="ci-bar"><div class="ci-bar-fill ${cls}" style="width:${pct}%"></div></div><span class="ci-pct ${cls}">${pct}%</span></div>`;
-        } else if(isErr){
-            detailHtml=`<div class="ci-msg err">${esc(it.message)}</div>`;
-        } else if(isDone){
-            detailHtml=`<div class="ci-msg" style="color:var(--green)">${esc(it.message)}</div>`;
-        } else if(it.message&&!isActive){
-            detailHtml=`<div class="ci-msg">${esc(it.message)}</div>`;
         }
 
-        return `<div class="ci${isActive?' ci-active':''}">
-            <span class="ci-phase ${it.phase}">${badgeText}</span>
-            <div class="ci-info">
-                <div class="ci-name">${esc(it.zipName)}</div>
-                ${detailHtml}
+        // Timestamp
+        const time=it.completedAt?`<div class="h-time">${esc(it.completedAt)}</div>`:'';
+
+        // Overall status badge
+        let statusBadge='';
+        if(isPs3){
+            const conv=convStatuses[it.filename];
+            const phase=conv?.phase||it.convPhase;
+            if(it.isoExists||phase==='done') statusBadge='<span class="badge badge-done">ISO Ready</span>';
+            else if(phase==='error') statusBadge='<span class="badge badge-error">ISO Failed</span>';
+            else if(phase==='extracting'||phase==='converting'||phase==='queued'||phase==='extracted') statusBadge='<span class="badge badge-extract">Converting</span>';
+            else statusBadge='<span class="badge badge-queue">No ISO</span>';
+        }
+
+        // Delete button for missing files
+        let acts='';
+        if(!it.fileExists&&it.id>0) acts=`<button class="ibtn ibtn-sm ibtn-x" onclick="removeCompleted(${it.id})" title="Remove entry">&#10005;</button>`;
+
+        return `<div class="item">
+            <div class="item-body">
+                <div class="item-r1"><span class="item-title">${title}</span>${plat}${statusBadge}</div>
+                <div class="h-files">${archiveRow}${isoRow}</div>
+                ${time}
             </div>
-            <div class="ci-acts">${acts}</div>
+            <div class="item-acts" style="justify-content:center">${acts}</div>
         </div>`;
     }).join('');
 }
+
+// --- Actions ---
 
 window.retryConvert=async name=>{
     delete convStatuses[name];
-    renderConversions();
+    renderHistory();
     convertSingle(name);
 };
 
-window.dismissConvert=name=>{
-    delete convStatuses[name];
-    renderConversions();
+window.convertSingle=async filename=>{
+    try{
+        const r=await fetch('/api/convert-ps3/single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})});
+        if(!r.ok){const t=await r.text();showError(t||'Failed to queue conversion');return}
+        const d=await r.json();
+        if(d.enqueued){convStatuses[filename]={zipName:filename,phase:'queued',message:'Waiting...'};renderActive();renderHistory()}
+    }catch(e){showError('Convert failed: '+e.message)}
 };
 
-$('btn-conv-all').onclick=async()=>{
-    $('btn-conv-all').disabled=true;
-    $('btn-conv-all').textContent='Queuing...';
+window.markDone=async filename=>{
     try{
-        const r=await fetch('/api/convert-ps3',{method:'POST'});
-        const d=await r.json();
-        if(d.queued===0&&d.skipped===0) showError('No PS3 zips found in completed downloads');
-        else if(d.queued>0) $('btn-conv-all').textContent=`Queued ${d.queued}`;
-    }catch(e){showError('Failed to start conversions: '+e.message)}
-    setTimeout(()=>{$('btn-conv-all').disabled=false;$('btn-conv-all').textContent='Convert All'},2000);
-    loadConvStatus();
+        const r=await fetch('/api/convert-ps3/mark-done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})});
+        if(r.ok){convStatuses[filename]={zipName:filename,phase:'done',message:'Marked as converted'};renderActive();renderHistory();loadData()}
+        else showError('Failed to mark as converted');
+    }catch(e){showError('Failed: '+e.message)}
 };
 
 window.abortConvert=async filename=>{
     try{
         await fetch('/api/convert-ps3/abort',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})});
-        loadConvStatus();
+        loadData();
     }catch(e){showError('Abort failed: '+e.message)}
 };
 
@@ -510,65 +507,39 @@ window.removeCompleted=async id=>{
     loadData();
 };
 
-window.markDone=async filename=>{
+$('btn-conv-all').onclick=async()=>{
+    $('btn-conv-all').disabled=true;
+    $('btn-conv-all').textContent='Queuing\u2026';
     try{
-        const r=await fetch('/api/convert-ps3/mark-done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})});
-        if(r.ok){convStatuses[filename]={zipName:filename,phase:'done',message:'Marked as converted'};renderConversions();loadData()}
-        else showError('Failed to mark as converted');
-    }catch(e){showError('Failed: '+e.message)}
-};
-
-window.convertSingle=async filename=>{
-    try{
-        const r=await fetch('/api/convert-ps3/single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})});
-        if(!r.ok){const t=await r.text();showError(t||'Failed to queue conversion');return}
+        const r=await fetch('/api/convert-ps3',{method:'POST'});
         const d=await r.json();
-        if(d.enqueued){loadConvStatus();loadData()}
-    }catch(e){showError('Convert failed: '+e.message)}
+        if(d.queued===0&&d.skipped===0) showError('No PS3 zips found in completed downloads');
+        else if(d.queued>0) $('btn-conv-all').textContent=`Queued ${d.queued}`;
+    }catch(e){showError('Failed to start conversions: '+e.message)}
+    setTimeout(()=>{$('btn-conv-all').disabled=false;$('btn-conv-all').textContent='Convert All'},2000);
+    loadData();
 };
 
-$('btn-conv-clear').onclick=()=>{
-    for(const k of Object.keys(convStatuses)){
-        if(convStatuses[k].phase==='done'||convStatuses[k].phase==='skipped')
-            delete convStatuses[k];
-    }
-    renderConversions();
-};
-
-async function loadConvStatus(){
-    try{
-        const items=await(await fetch('/api/convert-ps3/status')).json();
-        items.forEach(it=>{convStatuses[it.zipName]=it});
-        renderConversions();
-    }catch{}
-}
-
-// --- End PS3 Conversion UI ---
-
+// --- Queue actions ---
 $('btn-add').onclick=async()=>{const t=$('urls').value.trim();if(!t)return;
-// Parse URLs: split by newlines, spaces, or extract all https:// URLs from pasted text
-// Split on http/https boundaries then extract URLs
 const urls=[...new Set((t.replace(/(https?:\/\/)/gi,'\n$1').match(/https?:\/\/[^\s,;|"'<>]+/gi))||[])].filter(u=>u);
 if(!urls.length)return;await fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({urls})});$('urls').value='';$('urls').style.height='';loadData();
-// Auto-start if not already running
 if(!running){hub.invoke('StartDownload',activePath);paused=false;running=true;updateBtns()}};
-$('btn-start').onclick=()=>{hub.invoke('StartDownload',activePath);paused=false;running=true;updateBtns();renderQueue()};
-$('btn-pause').onclick=()=>{hub.invoke('PauseDownload');paused=true;running=false;updateBtns();renderQueue()};
-$('btn-stop').onclick=()=>{hub.invoke('StopDownload');paused=false;running=false;activeUrl=null;activeDlInfo=null;updateBtns();renderQueue();document.title='VIMM // DL'};
+$('btn-start').onclick=()=>{hub.invoke('StartDownload',activePath);paused=false;running=true;updateBtns();renderActive()};
+$('btn-pause').onclick=()=>{hub.invoke('PauseDownload');paused=true;running=false;updateBtns();renderActive()};
+$('btn-stop').onclick=()=>{hub.invoke('StopDownload');paused=false;running=false;activeUrl=null;activeDlInfo=null;updateBtns();renderActive();document.title='VIMM // DL'};
 $('btn-clear').onclick=async()=>{await fetch('/api/queue',{method:'DELETE'});loadData()};
 window.rmItem=async id=>{await fetch(`/api/queue/${id}`,{method:'DELETE'});loadData()};
 window.playItem=async id=>{hub.invoke('StartSpecific',activePath,id);paused=false;running=true;updateBtns();
-    // Refresh partials so the previously downloading item shows its progress bar
-    await refreshPartials();renderQueue()};
+    await refreshPartials();renderActive()};
 window.pauseItem=async()=>{hub.invoke('PauseDownload');paused=true;running=false;updateBtns();
-    // Small delay for file to flush, then refresh partials
-    setTimeout(async()=>{await refreshPartials();renderQueue()},1000)};
-window.resumeItem=()=>{hub.invoke('StartDownload',activePath);paused=false;running=true;updateBtns();renderQueue()};
+    setTimeout(async()=>{await refreshPartials();renderActive()},1000)};
+window.resumeItem=()=>{hub.invoke('StartDownload',activePath);paused=false;running=true;updateBtns();renderActive()};
 
 async function refreshPartials(){
     try{const p=await(await fetch('/api/partials')).json();partialsCache={};(p.files||[]).forEach(f=>{partialsCache[f.name]=f})}catch{}
 }
-window.setItemFormat=async(id,fmt)=>{await fetch('/api/queue/format',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,format:fmt})});const qi=queuedItems.find(q=>q.id===id);if(qi)qi.format=fmt;renderQueue()};
+window.setItemFormat=async(id,fmt)=>{await fetch('/api/queue/format',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,format:fmt})});const qi=queuedItems.find(q=>q.id===id);if(qi)qi.format=fmt;renderActive()};
 window.moveItem=async(id,dir)=>{await fetch('/api/queue/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,direction:dir})});loadData()};
 $('urls').addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter')$('btn-add').click()});
 
@@ -578,40 +549,35 @@ function parseProgress(msg){
         const[,file,dl,total,pct]=m;
         activeDlInfo={pct:parseFloat(pct).toFixed(2)+'%',size:`${dl} / ${total} MB`,width:pct+'%'};
         document.title=`${parseFloat(pct).toFixed(2)}% \u2014 ${file}`;
-        renderQueue();
+        renderActive();
         return;
     }
     const m2=msg.match(/^(.+?):\s*([\d.]+)\s*MB/);
-    if(m2){activeDlInfo={pct:'--',size:m2[2]+' MB',width:'0%'};renderQueue()}
+    if(m2){activeDlInfo={pct:'--',size:m2[2]+' MB',width:'0%'};renderActive()}
 }
 
+// --- SignalR Events ---
 hub.on('Status',msg=>{
     if(msg.startsWith('Processing:'))activeUrl=msg.replace('Processing: ','').trim();
-    renderQueue();
+    renderActive();
 });
 hub.on('Progress',msg=>{if(paused){paused=false;updateBtns()}running=true;parseProgress(msg)});
 hub.on('Completed',data=>{
     activeUrl=null;activeDlInfo=null;document.title='VIMM // DL';
-    const el=$('completed-log'),c=parseInt($('completed-count').textContent||'0')+1;
-    $('completed-count').textContent=c;
-    const ts=new Date().toLocaleTimeString('en-US',{hour12:false});
-    const fp=data.filepath?`<div class="di-path exists" title="${esc(data.filepath)}">${esc(data.filepath)}</div>`:'';
-    el.innerHTML+=`<div class="di"><span class="di-num">${String(c).padStart(2,'0')}</span><div class="di-info"><div class="di-name">${esc(data.filename)}</div>${fp}</div><span class="di-time">${ts}</span></div>`;
-    el.scrollTop=el.scrollHeight;loadData();
+    loadData();
 });
 hub.on('ConvertStatus',data=>{
     convStatuses[data.zipName]=data;
-    renderConversions();
-    // Refresh completed list to update per-item status badges
-    if(data.phase==='done'||data.phase==='error'||data.phase==='extracting'||data.phase==='converting')loadData();
+    renderActive();renderHistory();
+    if(data.phase==='done'||data.phase==='error')loadData();
 });
 hub.on('Error',msg=>showError(msg));
-hub.on('Done',()=>{running=false;paused=false;activeUrl=null;activeDlInfo=null;updateBtns();renderQueue();document.title='VIMM // DL'});
+hub.on('Done',()=>{running=false;paused=false;activeUrl=null;activeDlInfo=null;updateBtns();renderActive();document.title='VIMM // DL'});
 
 hub.onreconnecting(()=>{$('conn-dot').className='dot warn'});
-hub.onreconnected(()=>{$('conn-dot').className='dot on';loadConfig(true);restoreStatus();loadData();loadConvStatus()});
+hub.onreconnected(()=>{$('conn-dot').className='dot on';loadConfig(true);restoreStatus();loadData()});
 hub.onclose(()=>{$('conn-dot').className='dot off'});
-hub.start().then(()=>{$('conn-dot').className='dot on';loadConfig();loadData();restoreStatus();loadConvStatus();checkForUpdate()});
+hub.start().then(()=>{$('conn-dot').className='dot on';loadConfig();loadData();restoreStatus();checkForUpdate()});
 
 async function checkForUpdate(){
     try{
