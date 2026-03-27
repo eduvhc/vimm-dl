@@ -26,5 +26,5 @@ Thumbs.db
 desktop.ini
 
 ## Downloads (don't commit test downloads)
-downloading/
-completed/
+/downloading/
+/completed/
