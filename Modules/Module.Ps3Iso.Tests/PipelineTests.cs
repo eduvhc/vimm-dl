@@ -224,12 +224,12 @@ public class PipelineTests : Ps3IsoTestBase
     [TestMethod]
     public void SanitizeFileName_RemovesInvalidChars()
     {
-        var result = Ps3IsoConverter.SanitizeFileName("Game: The \"Sequel\" <2>");
+        var input = "Game/Name\0Bad";
+        var result = Ps3IsoConverter.SanitizeFileName(input);
+        var invalid = Path.GetInvalidFileNameChars();
 
-        Assert.IsFalse(result.Contains(':'));
-        Assert.IsFalse(result.Contains('"'));
-        Assert.IsFalse(result.Contains('<'));
-        Assert.IsFalse(result.Contains('>'));
+        Assert.IsFalse(result.Any(c => invalid.Contains(c)),
+            $"Result '{result}' still contains invalid chars for this platform");
     }
 
     [TestMethod]
