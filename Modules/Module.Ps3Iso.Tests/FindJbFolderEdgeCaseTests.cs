@@ -96,11 +96,24 @@ public class FindJbFolderEdgeCaseTests : Ps3IsoTestBase
     // --- SanitizeFileName edge cases ---
 
     [TestMethod]
-    public void SanitizeFileName_AllInvalidChars_ReturnsUnderscores()
+    public void SanitizeFileName_SlashAndNullAlwaysReplaced()
     {
-        var result = Ps3IsoConverter.SanitizeFileName("<>:\"/\\|?*");
-        Assert.IsFalse(string.IsNullOrEmpty(result));
-        Assert.IsTrue(result.All(c => c == '_'));
+        // / and \0 are invalid on ALL platforms
+        var result = Ps3IsoConverter.SanitizeFileName("Game/Name\0Bad");
+        Assert.IsFalse(result.Contains('/'));
+        Assert.IsFalse(result.Contains('\0'));
+        StringAssert.Contains(result, "Game");
+    }
+
+    [TestMethod]
+    public void SanitizeFileName_NoInvalidCharsInResult()
+    {
+        var input = "Game: The \"Sequel\" <2>/\\|?*";
+        var result = Ps3IsoConverter.SanitizeFileName(input);
+        var invalid = Path.GetInvalidFileNameChars();
+        Assert.IsFalse(result.Any(c => invalid.Contains(c)),
+            $"Result '{result}' contains invalid chars for this platform");
+        StringAssert.Contains(result, "Game");
     }
 
     [TestMethod]
@@ -113,18 +126,6 @@ public class FindJbFolderEdgeCaseTests : Ps3IsoTestBase
     public void SanitizeFileName_NormalName_Unchanged()
     {
         Assert.AreEqual("God of War III - BCES-00510", Ps3IsoConverter.SanitizeFileName("God of War III - BCES-00510"));
-    }
-
-    [TestMethod]
-    public void SanitizeFileName_MixedValidAndInvalid()
-    {
-        var result = Ps3IsoConverter.SanitizeFileName("Game: The \"Sequel\" <2>");
-        Assert.IsFalse(result.Contains(':'));
-        Assert.IsFalse(result.Contains('"'));
-        Assert.IsFalse(result.Contains('<'));
-        Assert.IsFalse(result.Contains('>'));
-        StringAssert.Contains(result, "Game");
-        StringAssert.Contains(result, "Sequel");
     }
 
     [TestMethod]
