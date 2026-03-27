@@ -13,7 +13,7 @@ import { SyncPanel } from './components/sync/SyncPanel'
 import { SettingsPanel } from './components/layout/SettingsPanel'
 import { DownloadContext, downloadReducer, initialState } from './hooks/useDownloadState'
 import { useSignalR } from './hooks/useSignalR'
-import { useData, useSettings } from './api/queries'
+import { useData } from './api/queries'
 import { parseProgress } from './lib/format'
 
 const queryClient = new QueryClient({
