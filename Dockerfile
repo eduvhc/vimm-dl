@@ -6,12 +6,12 @@ RUN apk add --no-cache git gcc musl-dev && \
     gcc -static ps3iso-utils/patchps3iso/patchps3iso.c -o /usr/local/bin/patchps3iso
 
 # Stage 2: Build frontend
-FROM node:22-alpine AS frontend
+FROM oven/bun:alpine AS frontend
 WORKDIR /src/VimmsDownloader/client
-COPY VimmsDownloader/client/package*.json ./
-RUN npm ci
+COPY VimmsDownloader/client/package.json VimmsDownloader/client/bun.lock ./
+RUN bun install --frozen-lockfile
 COPY VimmsDownloader/client/ ./
-RUN npm run build
+RUN bun run build
 
 # Stage 3: Build .NET app
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble-aot AS build
