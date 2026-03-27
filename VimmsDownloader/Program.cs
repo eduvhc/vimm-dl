@@ -400,10 +400,10 @@ app.MapPost("/api/convert-ps3/single", (ConvertSingleRequest req, DownloadQueue 
     var filepath = Path.Combine(completedDir, req.Filename);
 
     if (!File.Exists(filepath))
-        return Results.NotFound(new { error = "File not found" });
+        return Results.NotFound();
 
     var enqueued = pipeline.Enqueue(filepath, completedDir, tempBaseDir, force: true);
-    return Results.Ok(new { enqueued, filename = req.Filename });
+    return Results.Ok(new ConvertSingleResponse(enqueued, req.Filename));
 });
 
 app.MapPost("/api/convert-ps3/mark-done", (ConvertSingleRequest req, Ps3ConversionPipeline pipeline) =>
@@ -415,7 +415,7 @@ app.MapPost("/api/convert-ps3/mark-done", (ConvertSingleRequest req, Ps3Conversi
 app.MapPost("/api/convert-ps3/abort", (ConvertSingleRequest req, Ps3ConversionPipeline pipeline) =>
 {
     var aborted = pipeline.Abort(req.Filename);
-    return Results.Ok(new { aborted });
+    return Results.Ok(new AbortResponse(aborted));
 });
 
 app.MapGet("/api/convert-ps3/status", (Ps3ConversionPipeline pipeline) =>
@@ -475,6 +475,8 @@ record CompletedEvent(string Url, string Filename, string Filepath);
 record ConvertStatusUpdate(string ZipName, string Phase, string Message);
 record ConvertPs3Response(int Queued, int Skipped, List<string> Files);
 record ConvertSingleRequest(string Filename);
+record ConvertSingleResponse(bool Enqueued, string Filename);
+record AbortResponse(bool Aborted);
 
 // Shared lock for queue mutations (move, delete, complete)
 static class QueueLock
@@ -516,6 +518,8 @@ static class QueueLock
 [JsonSerializable(typeof(List<ConvertStatusUpdate>))]
 [JsonSerializable(typeof(ConvertPs3Response))]
 [JsonSerializable(typeof(ConvertSingleRequest))]
+[JsonSerializable(typeof(ConvertSingleResponse))]
+[JsonSerializable(typeof(AbortResponse))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class AppJsonContext : JsonSerializerContext;
 
