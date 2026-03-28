@@ -26,10 +26,12 @@ COPY Modules/Module.Sync/Module.Sync.csproj Modules/Module.Sync/
 COPY VimmsDownloader/VimmsDownloader.csproj VimmsDownloader/
 RUN dotnet restore VimmsDownloader/VimmsDownloader.csproj -r linux-x64
 
+ARG VERSION=0.0.0-dev
+
 COPY Modules/ Modules/
 COPY VimmsDownloader/ VimmsDownloader/
 COPY --from=frontend /src/VimmsDownloader/wwwroot/ VimmsDownloader/wwwroot/
-RUN dotnet publish VimmsDownloader/VimmsDownloader.csproj -c Release -r linux-x64 -o /app
+RUN dotnet publish VimmsDownloader/VimmsDownloader.csproj -c Release -r linux-x64 -o /app /p:Version=${VERSION}
 
 # Stage 4: Runtime
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble
