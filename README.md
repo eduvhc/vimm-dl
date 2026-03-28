@@ -1,6 +1,8 @@
 # VIMM // DL
 
-A lightweight, queue-based download manager for [Vimm's Lair](https://vimm.net) with automatic PS3 ISO conversion, built with .NET Native AOT.
+A self-hosted game preservation toolkit that automates downloading, converting, and organizing console ROMs from [Vimm's Lair](https://vimm.net). Built with .NET Native AOT.
+
+> **Note:** This project respects Vimm's Lair and its mission. There are no mechanisms to bypass or circumvent the download rate limit. Vimm has kept this archive alive for nearly 30 years — the least we can do is play by the rules. Don't be the reason another preservation site goes dark like Myrient.
 
 ## Quick Start
 
@@ -50,27 +52,33 @@ docker run -d -p 5000:5000 \
 
 - Paste URLs — downloads start automatically with format fallback
 - Pause/resume with HTTP Range, auto-resume on restart
-- PS3 JB Folder → ISO conversion (parallel pipeline, crash recovery)
-- PS3 .dec.iso download + rename (default format, configurable)
 - Archive validation, multithreaded extraction, optional archive preservation
 - Real-time progress, platform icons, format selection, drag-and-drop queue
 - Metrics dashboard — download speed chart, disk usage, system info
 - Event audit log — full event history with filters and detail view
 - JSON import/export with background metadata fetch
 - Feature flags (Beta/Developer) for Sync and Events tabs
-- Per-platform settings (PS3 default format, rename rules, parallelism)
 - Native AOT — fast startup, small footprint, no runtime needed
 
-## Thanks ❤️
+### PS3 (active focus)
 
-- **[Vimm's Lair](https://vimm.net)** ❤️ — Preserving classic video game history since 1997. A digital museum for the games we grew up with, kept free and accessible for everyone. This project is a love letter to that mission.
+- JB Folder → ISO conversion (parallel pipeline, crash recovery)
+- .dec.iso download + rename (default format, configurable)
+- ISO filename formatting — fix "The" placement, append serial, strip region
+- Per-platform settings (default format, rename rules, parallelism, archive preservation)
 
-- **[bucanero/ps3iso-utils](https://github.com/bucanero/ps3iso-utils)** ❤️ — The `makeps3iso` and `patchps3iso` tools that make PS3 ISO conversion possible. Without these, the entire conversion pipeline wouldn't exist.
+> The pipeline architecture (`IPipeline`) is designed for multi-console support. PS3 is the current focus — contributions for other consoles are welcome.
 
-- **[NullShield's VimmsDownloader](https://github.com/NullShield-Official/VimmsDownloader)** ❤️ — The original Python/Selenium downloader that inspired this project. VIMM // DL is a from-scratch .NET rewrite using plain HTTP, but the idea started there.
+## Thanks
 
-Please respect Vimm's Lair — don't abuse download limits and keep single sessions.
+This project wouldn't exist without the people who decided that preserving games was worth the effort.
+
+**[Vimm's Lair](https://vimm.net)** has been keeping classic games accessible since 1997 — long before anyone called it "digital preservation." This project is a love letter to that mission.
+
+**[bucanero/ps3iso-utils](https://github.com/bucanero/ps3iso-utils)** gave us `makeps3iso` and `patchps3iso`. The entire PS3 conversion pipeline exists because of this work.
+
+**[NullShield's VimmsDownloader](https://github.com/NullShield-Official/VimmsDownloader)** was the original Python/Selenium downloader that planted the seed. VIMM // DL is a from-scratch .NET rewrite, but the idea started there.
 
 ## License
 
-MIT
+MIT © 2026 eduvhc
