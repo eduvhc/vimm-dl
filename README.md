@@ -2,7 +2,7 @@
 
 A self-hosted game preservation toolkit that automates downloading, converting, and organizing console ROMs from [Vimm's Lair](https://vimm.net). Built with .NET Native AOT.
 
-> This project respects Vimm's Lair and its mission. There are no mechanisms to bypass or circumvent the download rate limit. Vimm has kept this archive alive for nearly 30 years — the least we can do is play by the rules. Don't be the reason another preservation site goes dark like Myrient.
+> We owe a lot to Vimm’s Lair for keeping the history of gaming accessible for nearly 30 years. To honor that legacy, this project does not—and will not—provide ways to bypass their download limits. Following the rules is a small price to pay to keep these archives online. Let’s learn from the loss of sites like Myrient and show our gratitude to Vimm by being responsible users.
 
 ## Quick Start
 
