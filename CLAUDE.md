@@ -10,12 +10,12 @@ Vimm's Lair download queue manager with PS3 ISO conversion and sync. Modular arc
 
 All modules follow the convention in `Modules/MODULE_GUIDE.md`. Each module is a standalone class library with zero web dependencies, communicating with the host via a typed bridge (`IModuleBridge<TEvent>`).
 
-- **Module.Core** — `IModuleBridge<TEvent>` interface, `Result<T>` (generic result type + `FileOps` safe I/O helpers), `SharedConstants` (`FileExtensions`, `Platforms`), and `Pipeline/` infrastructure (`IPipeline`, `PipelineState`, `PipelinePhase`, `PipelineStatusEvent`). Every module references this.
+- **Module.Core** — `IModuleBridge<TEvent>` interface, `Result<T>` (generic result type + `FileOps` safe I/O helpers), `SharedConstants` (`FileExtensions`, `Platforms`), and `Pipeline/` infrastructure (`IPipeline`, `PipelineState`, `PipelinePhase`, `PipelineStatusEvent`, `PipelineFlowInfo`, `DuplicateCheckResult`). Every module references this.
 - **Module.Core.Testing** — Shared test infrastructure: `FakeBridge<T>`, `TempDirectory`, `ToolsContainer` (Testcontainers with `ghcr.io/eduvhc/vimm-dl-tools`).
 - **Module.Download** — Download service: `DownloadService` (download loop, resume, progress, Result-based error handling), `VaultPageParser` (HTML parsing + format resolution with fallback), `IDownloadItemProvider` (async, host provides queue items). Bridge: `IDownloadBridge` emitting `DownloadStatusEvent`, `DownloadProgressEvent`, `DownloadCompletedEvent`, `DownloadErrorEvent`, `DownloadDoneEvent`.
 - **Module.Extractor** — 7z wrapper (`ZipExtract.QuickCheckAsync`, `ExtractAsync` returning `Result<bool>`). Auto-detects `7z` on PATH or `C:\Program Files\7-Zip\7z.exe` on Windows.
 - **Module.Ps3IsoTools** — Pure PS3 tools, no pipeline: `ParamSfo` (PARAM.SFO binary parser), `Ps3IsoConverter` (makeps3iso + patchps3iso + `FindJbFolder`, returns `Result<string>`), `IsoFilenameFormatter` (serial/The-fix/region rename with `IsoRenameOptions`).
-- **Module.Ps3Pipeline** — PS3 pipeline orchestration, implements `IPipeline`: `Ps3ConversionPipeline` (facade), `Ps3JbFolderPipeline` (extract→convert workers), `Ps3DecIsoPipeline` (rename/extract .dec.iso, optional archive preservation). Uses `PipelineState` from Module.Core. Bridge: `IPs3PipelineBridge : IModuleBridge<PipelineStatusEvent>`.
+- **Module.Ps3Pipeline** — PS3 pipeline orchestration, implements `IPipeline`: `Ps3ConversionPipeline` (facade with `BuildFlow`, `CheckDuplicate`, `GetStepDurations`), `Ps3JbFolderPipeline` (extract→convert workers), `Ps3DecIsoPipeline` (rename/extract .dec.iso, optional archive preservation). Uses `PipelineState` from Module.Core. Bridge: `IPs3PipelineBridge : IModuleBridge<PipelineStatusEvent>`.
 - **Module.Sync** — Compares ISOs between `completed/` and an external drive. Copy with progress, disk info, space checks via `ISyncBridge`.
 
 ### Host (VimmsDownloader/)
@@ -37,6 +37,7 @@ All modules follow the convention in `Modules/MODULE_GUIDE.md`. Each module is a
 ### Event Sourcing
 
 - `events` table — append-only log of ALL module events (download, pipeline, sync) including progress
+- `correlation_id` column links all events for a single pipeline run (12-char hex UUID)
 - Bridges write to events table before SignalR dispatch
 - `completed_urls` is a projection — `conv_phase`/`conv_message`/`iso_filename` updated by pipeline bridge on terminal events
 - Events pruned on startup: 7-day retention + 50k max rows
@@ -50,12 +51,12 @@ All modules follow the convention in `Modules/MODULE_GUIDE.md`. Each module is a
 
 ## Database
 
-SQLite, file `queue.db` in working directory (or `/app/data/queue.db` in Docker). Six tables:
+SQLite, file `queue.db` in `data/` subdirectory (derived from connection string). Seven tables:
 - `queued_urls` (id INTEGER PK AUTOINCREMENT, url TEXT, format INTEGER DEFAULT 0) — download queue ordered by id
 - `completed_urls` (id INTEGER PK AUTOINCREMENT, url TEXT, filename TEXT, filepath TEXT, completed_at TEXT, conv_phase TEXT, conv_message TEXT, iso_filename TEXT) — finished downloads with conversion state projection
 - `url_meta` (url TEXT PK, title TEXT, platform TEXT, size TEXT, formats TEXT, serial TEXT) — metadata cache
 - `settings` (key TEXT PK, value TEXT NOT NULL) — user settings
-- `events` (id INTEGER PK AUTOINCREMENT, item_name TEXT, event_type TEXT, phase TEXT, message TEXT, data TEXT, timestamp TEXT) — append-only event log
+- `events` (id INTEGER PK AUTOINCREMENT, item_name TEXT, event_type TEXT, phase TEXT, message TEXT, data TEXT, timestamp TEXT, correlation_id TEXT) — append-only event log
 - `schema_migrations` (name TEXT PK, executed_at TEXT) — migration tracking
 
 ### Settings Keys
@@ -103,23 +104,40 @@ Two scoped pipelines sharing `PipelineState` from Module.Core:
 - Appends serial: "- BLES-00043"
 - All rules configurable via `IsoRenameOptions` (settings UI toggles, .dec.iso only)
 
-**Pipeline Trace** (backend-driven UI):
-- `FileEndpoints.BuildTrace()` returns `PipelineTrace` per completed item
-- Steps with statuses (pending/active/done/error/skipped) + available actions (convert/retry/abort/mark-done)
-- Frontend renders what backend says — no business logic in UI
+**Pipeline Trace** (pipeline-owned flow):
+- Each pipeline implements `IPipeline.BuildFlow()` — defines its own step order, status mapping, and available actions
+- `Ps3ConversionPipeline` infers variant (JB folder / dec.iso / dec.iso archive) and builds `PipelineFlowInfo`
+- Host's `FileEndpoints.BuildTrace()` delegates to pipeline generically, adds ISO size
+- Steps with statuses (pending/active/done/error/skipped) + step durations from in-memory timing
 
 ## Pipeline Infrastructure (Module.Core/Pipeline)
 
-- `IPipeline` — generic contract: `GetStatuses()`, `Abort()`, `IsConverted()`, `MarkConverted()`
+- `IPipeline` — generic contract: `GetStatuses()`, `Abort()`, `IsConverted()`, `MarkConverted()`, `BuildFlow()`, `CheckDuplicate()`, `GetStepDurations()`
 - `PipelinePhase` — universal lifecycle: Queued, Done, Error, Skipped. `IsActive()`/`IsTerminal()` helpers
-- `PipelineState` — shared state class: statuses dict, converted set (seeded from DB on startup), cancellation tokens, bridge
-- `PipelineStatusEvent` — generic event: `ItemName`, `Phase`, `Message`, `OutputFilename`
+- `PipelineState` — shared state class: statuses dict, converted set (seeded from DB on startup), cancellation tokens, correlation IDs, phase timings, bridge
+- `PipelineStatusEvent` — generic event: `ItemName`, `Phase`, `Message`, `OutputFilename`, `CorrelationId`
+- `PipelineFlowInfo` / `PipelineFlowStep` — pipeline's self-description of its flow for a given item
+- `DuplicateCheckResult` — pipeline's answer for duplicate detection
 - Console-specific phases (e.g. `Ps3Phase.Extracting`) extend the universal set
+- `DownloadQueue.GetPipeline(platform)` — registry for pipeline lookup by platform
+
+## Duplicate Detection
+
+- `POST /api/queue` checks for duplicates before adding URLs
+- `QueueRepository.CheckDuplicatesAsync()` — DB query across `queued_urls` and `completed_urls` (case-insensitive URL match, includes platform from `url_meta`)
+- Pipeline-owned: `IPipeline.CheckDuplicate()` — each console defines its own filesystem/phase rules
+- PS3 rules: active conversions always block, terminal states check disk (archive + ISO existence)
+- No files on disk → not a duplicate (user can re-download freely)
+- `AddRequest.Force` flag to override duplicate check
+- Frontend `DuplicateDialog` shows per-file status with force-add option
+- 38 tests covering DB query, filesystem validation, JB Folder, Dec ISO, cross-pipeline, generic fallback
 
 ## Frontend (React + Vite + Tailwind)
 
 - `VimmsDownloader/client/` — React 19 + TypeScript + Vite + Tailwind CSS v4
+- **PWA** — installable via vite-plugin-pwa, auto-update service worker, workbox caching
 - PS3 XMB-inspired dark theme with blue glow accents, PS3 controller button colors (X=blue, O=red, △=green, □=purple)
+- **Responsive** — mobile-friendly with `sm:` breakpoint, touch actions always visible, horizontal scroll tabs
 - qBittorrent-style layout: Header → Toolbar → ControlBar → TabBar → Content → StatusBar
 - Tabs: Active, Completed, Metrics (always visible), Events (developer flag), Sync (beta flag), Settings
 - State: React Query for REST data, `DownloadContext` (useReducer) for SignalR live state
@@ -127,6 +145,7 @@ Two scoped pipelines sharing `PipelineState` from Module.Core:
 - Drag-and-drop queue reordering (HTML5 native, bulk reorder via `POST /api/queue/reorder`)
 - Auto-restores download state from `/api/data` on page load (isRunning, currentUrl, progress)
 - Chart.js + react-chartjs-2 for real-time download speed graph in Metrics tab
+- Step durations in pipeline trace (done steps show time, active steps show elapsed)
 - `bun run build` outputs to `../wwwroot/`, served by .NET static files
 - Dev: Vite proxy on :5173 → .NET on :5031
 
@@ -145,11 +164,11 @@ Two scoped pipelines sharing `PipelineState` from Module.Core:
 | GET | `/api/settings` | System info (hostname, IPv4, platform) + user settings |
 | POST | `/api/settings` | Save setting by key |
 | POST | `/api/settings/check-path` | Validate directory path |
-| GET | `/api/version` | Update check |
+| GET | `/api/version` | Update check (hourly polling) |
 | GET | `/api/meta` | Vault page metadata cache |
 | GET | `/api/metrics` | Disk usage, queue/completed/orphaned/downloading sizes |
 | GET | `/api/events` | Paginated event log with type/item filters |
-| POST | `/api/queue` | Add URLs (with default format from settings) |
+| POST | `/api/queue` | Add URLs (duplicate check, force flag, default format) |
 | PATCH | `/api/queue/{id}` | Move or set format |
 | DELETE | `/api/queue/{id}` | Remove from queue |
 | DELETE | `/api/queue` | Clear queue |
@@ -163,16 +182,31 @@ Two scoped pipelines sharing `PipelineState` from Module.Core:
 | POST | `/api/sync/copy` | Copy all or single |
 | POST | `/api/sync/cancel` | Cancel sync |
 
-## Download Path Detection
+## Volume Layout (Docker)
 
-- Auto-detected, not configurable: `/downloads` exists → use it (Docker volume), otherwise `~/Downloads` (bare metal)
-- No env var, no DB setting, no UI toggle
+Single bind mount: `-v ~/vimm:/vimms`
+
+```
+/vimms/
+├── data/
+│   └── queue.db          ← SQLite database
+└── downloads/
+    ├── downloading/      ← Partial files (auto-resume)
+    ├── completed/        ← Archives + ISOs
+    └── ps3_temp/         ← Conversion temp (auto-cleaned)
+```
+
+- Download path derived from DB connection string — `data/` and `downloads/` are siblings
+- `Dockerfile` sets `ConnectionStrings__Default="Data Source=/vimms/data/queue.db"`
+- `InitAsync` creates `data/` dir, startup creates `downloading/` + `completed/` subdirs
+- Bare metal: no connection string override → DB in working dir, downloads in `~/Downloads`
 
 ## Testing
 
-200 tests across 5 modules:
+238 tests across 6 projects:
 - 87 Sync (real file I/O, disk simulation, edge cases)
 - 61 Download (state management, file recovery, vault parser, format resolution, edge cases)
+- 38 Duplicate detection (DB query, filesystem, JB Folder, Dec ISO, pipeline delegation, generic fallback)
 - 25 Extractor (7z integration via Testcontainers)
 - 10 Ps3IsoTools (ParamSfo, FindJbFolder, IsoFilenameFormatter)
 - 17 Ps3Pipeline (pipeline state, rename, extract, abort, IPipeline contract)
@@ -183,22 +217,52 @@ All integration tests use real file I/O via `TempDirectory`. Container tests use
 
 - Main app: `Dockerfile` at repo root. Multi-stage (Bun frontend → ps3tools → .NET AOT → runtime).
 - Tools image: `Modules/Module.Core.Testing/Dockerfile.tools`. Published to `ghcr.io/eduvhc/vimm-dl-tools:latest`.
-- Two volumes: `/app/data` (SQLite DB), `/downloads` (downloading/ + completed/ + ps3_temp/)
+- Single volume: `/vimms` (data/ + downloads/)
 - Port 5000
-- Download path auto-detects `/downloads` when the volume is mounted
+- Assembly version set from git tag via `ARG VERSION` build arg
 - **Sync to external drive** — the target drive must be bind-mounted into the container:
   ```bash
   docker run -p 5000:5000 \
-    -v /path/to/data:/app/data \
-    -v /path/to/downloads:/downloads \
+    -v ~/vimm:/vimms \
     -v /mnt/usb/PS3ISO:/sync-target \
-    vimm-dl:local
+    --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
   ```
 
 ## CI/CD
 
-- `.github/workflows/publish.yml` — Bun build + .NET publish + Docker push on `v*` tags
+- `.github/workflows/publish.yml` — Bun build + .NET publish + Docker push on `v*` tags. Passes `VERSION` build arg from tag.
 - `.github/workflows/tools-image.yml` — tools image on Dockerfile.tools changes
+
+## Release Flow
+
+One command — creates the git tag, GitHub release with changelog, and triggers CI to build + push the Docker image:
+
+```bash
+gh release create v0.8.0 --title "v0.8.0" --notes "$(cat <<'EOF'
+## What's New
+
+- Feature X
+- Fix Y
+EOF
+)"
+```
+
+To draft first (review before publishing):
+
+```bash
+gh release create v0.8.0 --title "v0.8.0" --draft --notes "..."
+# Review at https://github.com/eduvhc/vimm-dl/releases, then publish from browser
+```
+
+CI extracts version from the tag, passes it as `--build-arg VERSION=0.8.0` to Docker, sets the assembly version via `/p:Version`. No manual csproj edits needed.
+
+After CI completes, update the server:
+
+```bash
+docker stop vimm-dl && docker rm vimm-dl
+docker pull ghcr.io/eduvhc/vimm-dl:latest
+docker run -d -p 5000:5000 -v ~/vimm:/vimms --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
+```
 
 ## User Preferences
 
