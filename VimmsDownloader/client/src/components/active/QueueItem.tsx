@@ -38,6 +38,11 @@ export function QueueItem({
     connection.invoke('StartSpecific', config?.activePath ?? null, item.id)
   }
 
+  function handlePause() {
+    if (!connection) return
+    connection.invoke('PauseDownload')
+  }
+
   function handleDelete() {
     deleteMutation.mutate(item.id)
   }
@@ -135,13 +140,23 @@ export function QueueItem({
 
       {/* Actions */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={handlePlay}
-          className="w-6 h-6 flex items-center justify-center rounded
-            text-ps-triangle/60 hover:text-ps-triangle hover:bg-ps-triangle/10
-            hover:shadow-[0_0_8px_rgba(0,166,81,0.15)] text-xs"
-          title="Start"
-        >&#9654;</button>
+        {isDownloading ? (
+          <button
+            onClick={handlePause}
+            className="w-6 h-6 flex items-center justify-center rounded
+              text-ps-square/60 hover:text-ps-square hover:bg-ps-square/10
+              hover:shadow-[0_0_8px_rgba(155,89,182,0.15)] text-xs"
+            title="Pause"
+          >&#9208;</button>
+        ) : (
+          <button
+            onClick={handlePlay}
+            className="w-6 h-6 flex items-center justify-center rounded
+              text-ps-triangle/60 hover:text-ps-triangle hover:bg-ps-triangle/10
+              hover:shadow-[0_0_8px_rgba(0,166,81,0.15)] text-xs"
+            title={isPaused ? 'Resume' : 'Start'}
+          >&#9654;</button>
+        )}
         <button
           onClick={handleDelete}
           className="w-6 h-6 flex items-center justify-center rounded

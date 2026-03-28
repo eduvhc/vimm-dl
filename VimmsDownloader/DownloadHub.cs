@@ -15,12 +15,12 @@ class DownloadHub : Hub
             while (_queue.IsRunning && DateTime.UtcNow < timeout)
                 await Task.Delay(200);
         }
-        _queue.Start(downloadPath);
+        await _queue.StartAsync(downloadPath);
     }
 
     public async Task StartSpecific(string? downloadPath, int queueId)
     {
-        _repo.MoveToFront(queueId);
+        await _repo.MoveToFrontAsync(queueId);
 
         if (_queue.IsRunning)
         {
@@ -29,7 +29,7 @@ class DownloadHub : Hub
             while (_queue.IsRunning && DateTime.UtcNow < timeout)
                 await Task.Delay(200);
         }
-        _queue.Start(downloadPath);
+        await _queue.StartAsync(downloadPath);
     }
 
     public void PauseDownload() => _queue.Pause();

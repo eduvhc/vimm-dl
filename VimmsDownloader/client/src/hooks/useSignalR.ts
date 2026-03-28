@@ -15,18 +15,23 @@ export function useSignalR(dispatch: React.Dispatch<DownloadAction>) {
       .withAutomaticReconnect()
       .build()
 
+    const invalidateEvents = () => queryClient.invalidateQueries({ queryKey: ['events'] })
+
     connection.on('Status', (msg: string) => {
       dispatch({ type: 'STATUS', url: msg })
+      invalidateEvents()
     })
 
     connection.on('Progress', (msg: string) => {
       const info = parseProgress(msg)
       if (info) dispatch({ type: 'PROGRESS', info })
+      invalidateEvents()
     })
 
     connection.on('Completed', () => {
       dispatch({ type: 'COMPLETED' })
       queryClient.invalidateQueries({ queryKey: ['data'] })
+      invalidateEvents()
     })
 
     connection.on('ConvertStatus', (data: Ps3IsoStatusEvent) => {
@@ -34,14 +39,21 @@ export function useSignalR(dispatch: React.Dispatch<DownloadAction>) {
       if (data.phase === 'done' || data.phase === 'error') {
         queryClient.invalidateQueries({ queryKey: ['data'] })
       }
+      invalidateEvents()
     })
 
     connection.on('Error', (msg: string) => {
       dispatch({ type: 'ERROR', message: msg })
+      invalidateEvents()
     })
 
     connection.on('Done', () => {
       dispatch({ type: 'DONE' })
+      queryClient.invalidateQueries({ queryKey: ['data'] })
+      invalidateEvents()
+    })
+
+    connection.on('MetaReady', () => {
       queryClient.invalidateQueries({ queryKey: ['data'] })
     })
 

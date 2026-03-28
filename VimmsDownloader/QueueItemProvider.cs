@@ -2,22 +2,21 @@ using Module.Download;
 
 class QueueItemProvider(QueueRepository repo) : IDownloadItemProvider
 {
-    public DownloadItem? GetNext()
+    public async Task<DownloadItem?> GetNextAsync()
     {
-        var row = repo.GetNextQueueItem();
+        var row = await repo.GetNextQueueItemAsync();
         if (row == null) return null;
         var (id, url, format) = row.Value;
         return new DownloadItem(id, url, format);
     }
 
-    public void Complete(int id, string url, string filename, string filepath)
+    public async Task CompleteAsync(int id, string url, string filename, string filepath)
     {
-        lock (QueueLock.Sync)
-            repo.CompleteItem(id, url, filename, filepath);
+        await repo.CompleteItemAsync(id, url, filename, filepath);
     }
 
-    public void Remove(int id)
+    public async Task RemoveAsync(int id)
     {
-        repo.DeleteFromQueue(id);
+        await repo.DeleteFromQueueAsync(id);
     }
 }

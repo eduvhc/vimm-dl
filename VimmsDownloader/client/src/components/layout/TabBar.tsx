@@ -1,18 +1,23 @@
-export type Tab = 'active' | 'completed' | 'sync' | 'settings'
+export type Tab = 'active' | 'completed' | 'metrics' | 'events' | 'sync' | 'settings'
 
 interface TabBarProps {
   activeTab: Tab
   onTabChange: (tab: Tab) => void
-  counts: { active: number; completed: number; sync: number }
+  counts: { active: number; completed: number; events: number; sync: number }
+  hiddenTabs?: Set<Tab>
 }
 
-export function TabBar({ activeTab, onTabChange, counts }: TabBarProps) {
-  const tabs: { id: Tab; label: string; count: number }[] = [
+export function TabBar({ activeTab, onTabChange, counts, hiddenTabs }: TabBarProps) {
+  const allTabs: { id: Tab; label: string; count: number }[] = [
     { id: 'active', label: 'Active', count: counts.active },
     { id: 'completed', label: 'Completed', count: counts.completed },
+    { id: 'metrics', label: 'Metrics', count: 0 },
+    { id: 'events', label: 'Events', count: counts.events },
     { id: 'sync', label: 'Sync', count: counts.sync },
     { id: 'settings', label: 'Settings', count: 0 },
   ]
+
+  const tabs = hiddenTabs ? allTabs.filter(t => !hiddenTabs.has(t.id)) : allTabs
 
   return (
     <div className="flex items-center gap-0 px-6 bg-surface/50 border-b border-border/30">

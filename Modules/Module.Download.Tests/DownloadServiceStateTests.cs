@@ -286,12 +286,12 @@ file class FakeHttpClientFactory : IHttpClientFactory
 file class FakeItemProvider(List<DownloadItem> items) : IDownloadItemProvider
 {
     private int _index;
-    public DownloadItem? GetNext() => _index < items.Count ? items[_index++] : null;
-    public void Complete(int id, string url, string filename, string filepath) { }
-    public void Remove(int id) { }
+    public Task<DownloadItem?> GetNextAsync() => Task.FromResult(_index < items.Count ? items[_index++] : null);
+    public Task CompleteAsync(int id, string url, string filename, string filepath) => Task.CompletedTask;
+    public Task RemoveAsync(int id) => Task.CompletedTask;
 }
 
-/// <summary>Blocks GetNext() and signals when entered. Deterministic, no Task.Delay.</summary>
+/// <summary>Blocks GetNextAsync() and signals when entered. Deterministic, no Task.Delay.</summary>
 file class BlockingItemProvider : IDownloadItemProvider
 {
     private readonly ManualResetEventSlim _entered = new(false);
@@ -307,21 +307,21 @@ file class BlockingItemProvider : IDownloadItemProvider
 
     public void Release() => _release.Set();
 
-    public DownloadItem? GetNext()
+    public Task<DownloadItem?> GetNextAsync()
     {
         Interlocked.Increment(ref _enterCount);
         _entered.Set();
         _release.Wait(TimeSpan.FromSeconds(10));
-        return null;
+        return Task.FromResult<DownloadItem?>(null);
     }
-    public void Complete(int id, string url, string filename, string filepath) { }
-    public void Remove(int id) { }
+    public Task CompleteAsync(int id, string url, string filename, string filepath) => Task.CompletedTask;
+    public Task RemoveAsync(int id) => Task.CompletedTask;
 }
 
 file class ThrowingItemProvider(bool throwOnGetNext) : IDownloadItemProvider
 {
-    public DownloadItem? GetNext() =>
-        throwOnGetNext ? throw new InvalidOperationException("DB connection lost") : null;
-    public void Complete(int id, string url, string filename, string filepath) { }
-    public void Remove(int id) { }
+    public Task<DownloadItem?> GetNextAsync() =>
+        throwOnGetNext ? throw new InvalidOperationException("DB connection lost") : Task.FromResult<DownloadItem?>(null);
+    public Task CompleteAsync(int id, string url, string filename, string filepath) => Task.CompletedTask;
+    public Task RemoveAsync(int id) => Task.CompletedTask;
 }

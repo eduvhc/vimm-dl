@@ -3,10 +3,28 @@ using Microsoft.AspNetCore.SignalR;
 using Module.Core.Pipeline;
 using Module.Ps3Pipeline.Bridge;
 
-class SignalRPs3PipelineBridge(IHubContext<DownloadHub> hub) : IPs3PipelineBridge
+class SignalRPs3PipelineBridge(IHubContext<DownloadHub> hub, QueueRepository repo) : IPs3PipelineBridge
 {
     public async Task SendAsync(PipelineStatusEvent evt)
     {
+        // 1. Append ALL events to event log
+        try
+        {
+            var data = evt.OutputFilename != null
+                ? $"{{\"outputFilename\":\"{EscapeJson(evt.OutputFilename)}\"}}"
+                : null;
+            await repo.AppendEventAsync(evt.ItemName, "pipeline_status", evt.Phase, evt.Message, data);
+        }
+        catch { }
+
+        // 2. Update projection (terminal states only)
+        if (PipelinePhase.IsTerminal(evt.Phase))
+        {
+            try { await repo.SaveConversionStateAsync(evt.ItemName, evt.Phase, evt.Message, evt.OutputFilename); }
+            catch { }
+        }
+
+        // 3. SignalR broadcast
         try
         {
             var json = JsonSerializer.SerializeToElement(evt, AppJsonContext.Default.PipelineStatusEvent);
@@ -15,4 +33,6 @@ class SignalRPs3PipelineBridge(IHubContext<DownloadHub> hub) : IPs3PipelineBridg
         }
         catch { }
     }
+
+    private static string EscapeJson(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }

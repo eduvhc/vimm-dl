@@ -1,5 +1,67 @@
 # Changelog
 
+## v0.6.0
+
+### Event Sourcing & Audit
+- **Event log** — append-only `events` table captures every download, pipeline, and sync event with timestamps and JSON payloads
+- **Events tab** — filterable audit view (Status, Progress, Downloads, Errors, Pipeline, Sync) with expandable rows and copy buttons
+- **Real-time events** — SignalR pushes invalidate the events query instantly
+- **Retention** — auto-prune on startup: 7-day retention + 50k row cap
+
+### Result Pattern
+- **`Result<T>`** in Module.Core — zero-allocation struct replacing exception-based error handling across all modules
+- **`FileOps`** utility — `TryMove`, `TryDelete`, `TryDeleteDirectory`, `TryWriteAllText` for safe file operations
+- **DownloadService** — `StreamDownload` returns `Result<(string, string)>` instead of throwing
+- **ZipExtract** — `QuickCheckAsync`/`ExtractAsync` return `Result<bool>` instead of tuples
+- **Ps3IsoConverter** — `ConvertFolderToIsoAsync` returns `Result<string>`, deleted `ConversionResult`
+- Exceptions reserved for critical failures + `OperationCanceledException`
+
+### Database Migrator
+- **`DatabaseMigrator.cs`** — embedded SQL migrations from `Migrations/*.sql`, tracked in `schema_migrations` table
+- Idempotent: catches "duplicate column" / "already exists" errors gracefully
+- Replaces inline `InitAsync` schema code — add `NNN_description.sql` for new migrations
+
+### Metrics Dashboard
+- **Metrics tab** (always visible) — system info, download speed chart, disk usage
+- **System info card** — hostname, IPv4, platform, OS, download path
+- **Download speed chart** — real-time Chart.js line chart from SignalR progress (rolling 2min window), current + average speed
+- **Disk usage card** — volume bar, queued vs free ratio, completed/downloading/orphaned breakdown with contextual hints
+
+### Pipeline Trace
+- **Backend-driven trace** — `PipelineTrace` per completed item with steps, statuses, and available actions
+- **Frontend renders what backend says** — zero business logic in `HistoryItem.tsx`, all phase/badge/action decisions made server-side
+- Step indicators: Extract → Convert (JB folder) or Extract → Rename (dec.iso)
+
+### PS3 Improvements
+- **Default format per platform** — `ps3_default_format` setting, defaults to 1 (.dec.iso)
+- **Format fallback** — if preferred format unavailable, falls back to JB Folder with status event notification
+- **Preserve archive** — `ps3_preserve_archive` setting (default: true) keeps .7z after conversion
+- **Settings consolidated** — ISO rename rules, default format, preserve archive, parallelism all under "PS3" section with `.dec.iso only` info tag
+
+### Feature Flags
+- **Beta/Developer tiers** — `feature_sync` (Beta), `feature_events` (Developer) stored in settings table
+- **Tab gating** — hidden tabs auto-detected from settings, falls back to Active if current tab hidden
+- **Settings UI** — Feature Flags section with toggles
+
+### Download Improvements
+- **Async repository** — all `QueueRepository` methods converted to async
+- **Background metadata fetch** — `MetaReady` SignalR event triggers instant queue refresh (no F5 needed)
+- **Format in events** — download status includes `[JB Folder]` or `[.dec.iso (format N)]`
+- **429 rate limit** — logged as status (not error) since it's a transient retry
+- **No queue limit** — removed 40-item cap on add endpoint
+
+### UI Enhancements
+- **Completed item delete** — inline confirmation with "Record only" or "Delete files too" (removes archive + ISO)
+- **Queue item pause** — active download shows pause button instead of play
+- **Settings grid layout** — responsive 1/2/3 column grid
+- **Toggle reactivity** — fixed `staleTime: Infinity` + empty response parsing that prevented settings from updating
+
+### Infrastructure
+- **Download path auto-detection** — `/downloads` if exists (Docker volume), else `~/Downloads` (bare metal). No env var, no setting
+- **Conversion state in DB** — `conv_phase`/`conv_message`/`iso_filename` columns on `completed_urls`, replaces `.ps3converted` file
+- **Converted set seeded from DB** — `PipelineState.SeedConverted()` replaces file-based `LoadConvertedList()`
+- **One-time migration** — `.ps3converted` file migrated to DB on first startup, renamed to `.ps3converted.migrated`
+
 ## v0.5.0
 
 ### Architecture

@@ -17,7 +17,7 @@ public class HandleExtractedArchiveTests : Ps3PipelineTestBase
 
         var result = await pipeline.DecIso.HandleExtractedArchive("archive.7z", tempDir, completed);
 
-        Assert.IsTrue(result);
+        Assert.IsTrue(result.IsOk);
         Assert.IsTrue(File.Exists(Path.Combine(completed, "Game.iso")));
         CollectionAssert.AreEqual(content, File.ReadAllBytes(Path.Combine(completed, "Game.iso")));
     }
@@ -32,7 +32,7 @@ public class HandleExtractedArchiveTests : Ps3PipelineTestBase
 
         var result = await pipeline.DecIso.HandleExtractedArchive("archive.7z", tempDir, completed);
 
-        Assert.IsTrue(result);
+        Assert.IsTrue(result.IsOk);
         Assert.IsTrue(File.Exists(Path.Combine(completed, "Game.iso")));
     }
 
@@ -45,7 +45,7 @@ public class HandleExtractedArchiveTests : Ps3PipelineTestBase
 
         var result = await pipeline.DecIso.HandleExtractedArchive("archive.7z", tempDir, completed);
 
-        Assert.IsFalse(result);
+        Assert.IsFalse(result.IsOk);
     }
 
     [TestMethod]

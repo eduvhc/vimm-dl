@@ -131,7 +131,7 @@ public class VaultPageParserEdgeCaseTests
     }
 
     [TestMethod]
-    public void Parse_Format2_IncludesAlt2()
+    public void Parse_Format2_NoOptionsOnPage_FallsBackToDefault()
     {
         var html = """
             <title>Game</title>
@@ -140,7 +140,10 @@ public class VaultPageParserEdgeCaseTests
             """;
         var result = VaultPageParser.Parse(html, "https://vimm.net/vault/1", 2);
         Assert.IsNotNull(result);
-        StringAssert.Contains(result.DownloadUrl, "alt=2");
+        // No format options on page -> falls back to 0 (default)
+        Assert.AreEqual(0, result.ResolvedFormat);
+        Assert.IsNotNull(result.FormatNote);
+        Assert.IsFalse(result.DownloadUrl.Contains("alt="));
     }
 
     // --- Malformed HTML ---

@@ -32,8 +32,11 @@ public class Ps3ConversionPipeline : IPipeline
     public Task RenameDecIsoAsync(string filePath, string? serial = null, IsoRenameOptions? renameOptions = null)
         => DecIso.RenameDecIsoAsync(filePath, serial, renameOptions);
     public Task ExtractAndRenameDecIsoAsync(string archivePath, string completedDir, string tempBaseDir,
-        string? serial = null, IsoRenameOptions? renameOptions = null)
-        => DecIso.ExtractAndRenameDecIsoAsync(archivePath, completedDir, tempBaseDir, serial, renameOptions);
+        string? serial = null, IsoRenameOptions? renameOptions = null, bool deleteArchive = false)
+        => DecIso.ExtractAndRenameDecIsoAsync(archivePath, completedDir, tempBaseDir, serial, renameOptions, deleteArchive);
+
+    // State seeding
+    public void SeedConverted(IEnumerable<string> names) => _state.SeedConverted(names);
 
     // IPipeline
     public List<PipelineStatusEvent> GetStatuses() => _state.GetStatuses();

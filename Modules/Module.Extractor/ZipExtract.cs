@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+using Module.Core;
 
 namespace Module.Extractor;
 
@@ -57,11 +58,11 @@ public static partial class ZipExtract
     /// Quick archive header check using 7z l (list). Only reads the archive index,
     /// not the full content — catches truncated/corrupt headers without full I/O.
     /// </summary>
-    public static async Task<(bool Valid, string? Error)> QuickCheckAsync(
+    public static async Task<Result<bool>> QuickCheckAsync(
         string zipPath, CancellationToken ct = default)
     {
         if (!File.Exists(zipPath))
-            return (false, $"File not found: {zipPath}");
+            return Result<bool>.Fail($"File not found: {zipPath}");
 
         using var proc = Process.Start(Create7zProcess($"l \"{zipPath}\" -y"))
             ?? throw new InvalidOperationException("Failed to start 7z");
@@ -74,22 +75,22 @@ public static partial class ZipExtract
         await proc.WaitForExitAsync(ct);
 
         return proc.ExitCode == 0
-            ? (true, null)
-            : (false, $"Archive header invalid (exit {proc.ExitCode}): {errors}");
+            ? Result<bool>.Ok(true)
+            : Result<bool>.Fail($"Archive header invalid (exit {proc.ExitCode}): {errors}");
     }
 
     /// <summary>
     /// Extract an archive using 7z with multithreading enabled.
     /// Optional onProgress callback receives percentage (0-100).
     /// </summary>
-    public static async Task<(bool Success, string? Error)> ExtractAsync(
+    public static async Task<Result<bool>> ExtractAsync(
         string zipPath,
         string outputDir,
         Action<int>? onProgress = null,
         CancellationToken ct = default)
     {
         if (!File.Exists(zipPath))
-            return (false, $"File not found: {zipPath}");
+            return Result<bool>.Fail($"File not found: {zipPath}");
 
         Directory.CreateDirectory(outputDir);
 
@@ -142,7 +143,7 @@ public static partial class ZipExtract
         try { await progressTask; } catch (OperationCanceledException) { }
 
         return proc.ExitCode == 0
-            ? (true, null)
-            : (false, $"7z failed (exit {proc.ExitCode}): {errors}");
+            ? Result<bool>.Ok(true)
+            : Result<bool>.Fail($"7z failed (exit {proc.ExitCode}): {errors}");
     }
 }

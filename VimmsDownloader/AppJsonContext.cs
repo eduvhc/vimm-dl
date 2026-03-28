@@ -49,5 +49,12 @@ using Module.Sync.Bridge;
 [JsonSerializable(typeof(SyncCopyRequest))]
 [JsonSerializable(typeof(SyncProgressEvent))]
 [JsonSerializable(typeof(SyncCompletedEvent))]
+[JsonSerializable(typeof(TraceStep))]
+[JsonSerializable(typeof(List<TraceStep>))]
+[JsonSerializable(typeof(PipelineTrace))]
+[JsonSerializable(typeof(MetricsResponse))]
+[JsonSerializable(typeof(EventRow))]
+[JsonSerializable(typeof(List<EventRow>))]
+[JsonSerializable(typeof(EventsResponse))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class AppJsonContext : JsonSerializerContext;

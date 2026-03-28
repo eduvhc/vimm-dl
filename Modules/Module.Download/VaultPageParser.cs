@@ -30,9 +30,17 @@ public static partial class VaultPageParser
     [GeneratedRegex(@"(//dl\d*\.vimm\.net/?)", RegexOptions.IgnoreCase)]
     private static partial Regex DlServerProtoRelRegex();
 
-    public record ParseResult(string MediaId, string Title, string DownloadUrl);
+    [GeneratedRegex(@"<option\s+value=""(\d+)""\s+title=""[^""]*"">[^<]+</option>", RegexOptions.IgnoreCase)]
+    private static partial Regex FormatOptionRegex();
 
-    public static ParseResult? Parse(string html, string vaultUrl, int format)
+    public record ParseResult(string MediaId, string Title, string DownloadUrl, int ResolvedFormat, string? FormatNote);
+
+    /// <summary>
+    /// Parse the vault page HTML. Resolves format with fallback:
+    /// preferred format → fallback to 0 → error if neither available.
+    /// FormatNote describes what happened (null = used as requested).
+    /// </summary>
+    public static ParseResult? Parse(string html, string vaultUrl, int preferredFormat)
     {
         var mediaId = ExtractMediaId(html);
         if (mediaId == null) return null;
@@ -42,12 +50,53 @@ public static partial class VaultPageParser
             ? WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim())
             : "download";
 
+        var availableFormats = ExtractAvailableFormats(html);
+        var (resolvedFormat, formatNote) = ResolveFormat(preferredFormat, availableFormats);
+
         var dlServer = ResolveDlServer(html, vaultUrl);
-        var downloadUrl = format > 0
-            ? $"{dlServer}?mediaId={mediaId}&alt={format}"
+        var downloadUrl = resolvedFormat > 0
+            ? $"{dlServer}?mediaId={mediaId}&alt={resolvedFormat}"
             : $"{dlServer}?mediaId={mediaId}";
 
-        return new ParseResult(mediaId, title, downloadUrl);
+        return new ParseResult(mediaId, title, downloadUrl, resolvedFormat, formatNote);
+    }
+
+    /// <summary>Extract available format numbers from option tags. Empty set = only default (0) available.</summary>
+    internal static HashSet<int> ExtractAvailableFormats(string html)
+    {
+        var formats = new HashSet<int>();
+        foreach (Match m in FormatOptionRegex().Matches(html))
+        {
+            if (int.TryParse(m.Groups[1].Value, out var f))
+                formats.Add(f);
+        }
+        return formats;
+    }
+
+    /// <summary>
+    /// Resolve format with fallback. Returns (resolvedFormat, note).
+    /// Note is null if preferred format was used, otherwise describes fallback.
+    /// </summary>
+    internal static (int Format, string? Note) ResolveFormat(int preferred, HashSet<int> available)
+    {
+        // No format options on page = only default available
+        if (available.Count == 0)
+        {
+            if (preferred == 0) return (0, null);
+            return (0, $"Format {preferred} not available, using JB Folder");
+        }
+
+        // Preferred format is available
+        if (available.Contains(preferred))
+            return (preferred, null);
+
+        // Fallback to 0 (JB Folder / default)
+        if (available.Contains(0) || available.Count == 0)
+            return (0, $"Format {preferred} not available, falling back to JB Folder");
+
+        // Use whatever is available (first option)
+        var fallback = available.First();
+        return (fallback, $"Format {preferred} not available, using format {fallback}");
     }
 
     internal static string? ExtractMediaId(string html)

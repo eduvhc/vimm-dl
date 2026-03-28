@@ -228,26 +228,26 @@ public class ZipExtractEdgeCaseContainerTests : ExtractorTestBase
     public async Task QuickCheck_NullPath_ThrowsOrReturnsFalse()
     {
         // Passing empty string should return file not found
-        var (valid, error) = await ZipExtract.QuickCheckAsync("");
-        Assert.IsFalse(valid);
-        Assert.IsNotNull(error);
+        var result = await ZipExtract.QuickCheckAsync("");
+        Assert.IsFalse(result.IsOk);
+        Assert.IsNotNull(result.Error);
     }
 
     [TestMethod]
     public async Task Extract_NullPath_ReturnsFalse()
     {
         var outDir = Tmp.CreateSubDir("null_out");
-        var (success, error) = await ZipExtract.ExtractAsync("", outDir);
-        Assert.IsFalse(success);
-        Assert.IsNotNull(error);
+        var result = await ZipExtract.ExtractAsync("", outDir);
+        Assert.IsFalse(result.IsOk);
+        Assert.IsNotNull(result.Error);
     }
 
     [TestMethod]
     public async Task QuickCheck_DirectoryInsteadOfFile_ReturnsFalse()
     {
         var dir = Tmp.CreateSubDir("not_a_file");
-        var (valid, error) = await ZipExtract.QuickCheckAsync(dir);
-        Assert.IsFalse(valid);
+        var result = await ZipExtract.QuickCheckAsync(dir);
+        Assert.IsFalse(result.IsOk);
     }
 
     [TestMethod]
@@ -255,7 +255,7 @@ public class ZipExtractEdgeCaseContainerTests : ExtractorTestBase
     {
         var dir = Tmp.CreateSubDir("not_a_file2");
         var outDir = Tmp.CreateSubDir("dir_extract_out");
-        var (success, error) = await ZipExtract.ExtractAsync(dir, outDir);
-        Assert.IsFalse(success);
+        var result = await ZipExtract.ExtractAsync(dir, outDir);
+        Assert.IsFalse(result.IsOk);
     }
 }

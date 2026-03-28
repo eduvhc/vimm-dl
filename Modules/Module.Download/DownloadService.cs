@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Module.Core;
 using Module.Download.Bridge;
 
 namespace Module.Download;
@@ -82,7 +83,7 @@ public class DownloadService
         {
             while (!ct.IsCancellationRequested)
             {
-                var item = provider.GetNext();
+                var item = await provider.GetNextAsync();
                 if (item == null) break;
 
                 var (id, url, format) = item;
@@ -100,24 +101,37 @@ public class DownloadService
                     if (parsed == null)
                     {
                         await Emit(new DownloadErrorEvent($"Could not find mediaId for {url}"));
-                        provider.Remove(id);
+                        await provider.RemoveAsync(id);
                         continue;
                     }
 
-                    await Emit(new DownloadStatusEvent($"Download URL: {parsed.DownloadUrl}"));
-                    await Emit(new DownloadStatusEvent($"Downloading: {parsed.Title} (mediaId={parsed.MediaId})"));
+                    if (parsed.FormatNote != null)
+                        await Emit(new DownloadStatusEvent($"Format fallback: {parsed.FormatNote}"));
 
-                    var (filename, completedFilePath) = await StreamDownload(
+                    var formatLabel = parsed.ResolvedFormat == 0 ? "JB Folder" : $".dec.iso (format {parsed.ResolvedFormat})";
+                    await Emit(new DownloadStatusEvent($"Download URL: {parsed.DownloadUrl}"));
+                    await Emit(new DownloadStatusEvent($"Downloading: {parsed.Title} [{formatLabel}] (mediaId={parsed.MediaId})"));
+
+                    var result = await StreamDownload(
                         http, parsed.DownloadUrl, url, parsed.Title,
                         downloadingPath, completedPath, ct);
 
-                    // Move + complete (locked by host via provider)
-                    provider.Complete(id, url, filename, completedFilePath);
+                    if (!result.IsOk)
+                    {
+                        _log.LogError("Download failed for {Url}: {Error}", url, result.Error);
+                        await Emit(new DownloadErrorEvent($"Failed: {url} - {result.Error}"));
+                        var backoff = rand.Next(15, 46);
+                        await Emit(new DownloadStatusEvent($"Waiting {backoff}s before retry..."));
+                        await Task.Delay(backoff * 1000, ct);
+                        continue;
+                    }
 
+                    var (filename, completedFilePath) = result.Value;
+
+                    await provider.CompleteAsync(id, url, filename, completedFilePath);
                     await Emit(new DownloadCompletedEvent(url, filename, completedFilePath));
                     _log.LogInformation("Downloaded {Filename} -> completed/", filename);
 
-                    // Post-download hook (PS3 pipeline, etc.)
                     if (OnPostDownload != null)
                         await OnPostDownload(url, filename, completedFilePath, format);
 
@@ -129,16 +143,8 @@ public class DownloadService
                 catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
                     _log.LogWarning("Rate limited on {Url}, backing off 60s", url);
-                    await Emit(new DownloadErrorEvent($"Rate limited: {url} - waiting 60s before retry"));
+                    await Emit(new DownloadStatusEvent($"Rate limited: {url} - waiting 60s before retry"));
                     await Task.Delay(60_000, ct);
-                }
-                catch (Exception ex)
-                {
-                    _log.LogError(ex, "Error downloading {Url}", url);
-                    await Emit(new DownloadErrorEvent($"Failed: {url} - {ex.Message}"));
-                    var backoff = rand.Next(15, 46);
-                    await Emit(new DownloadStatusEvent($"Waiting {backoff}s before retry..."));
-                    await Task.Delay(backoff * 1000, ct);
                 }
             }
 
@@ -172,7 +178,7 @@ public class DownloadService
         }
     }
 
-    private async Task<(string Filename, string CompletedPath)> StreamDownload(
+    private async Task<Result<(string Filename, string CompletedPath)>> StreamDownload(
         HttpClient http, string downloadUrl, string vaultUrl, string gameTitle,
         string downloadingPath, string completedPath, CancellationToken ct)
     {
@@ -180,7 +186,9 @@ public class DownloadService
         headRequest.Headers.Referrer = new Uri(vaultUrl);
         headRequest.Headers.Add("Sec-Fetch-Site", "cross-site");
         using var headResponse = await http.SendAsync(headRequest, HttpCompletionOption.ResponseHeadersRead, ct);
-        headResponse.EnsureSuccessStatusCode();
+
+        if (!headResponse.IsSuccessStatusCode)
+            return Result<(string, string)>.Fail($"HTTP {(int)headResponse.StatusCode} {headResponse.ReasonPhrase}");
 
         var filename = headResponse.Content.Headers.ContentDisposition?.FileNameStar
             ?? headResponse.Content.Headers.ContentDisposition?.FileName?.Trim('"')
@@ -203,10 +211,10 @@ public class DownloadService
             headResponse.Dispose();
             await Emit(new DownloadStatusEvent($"Already downloaded: {filename}, moving to completed"));
 
-            if (File.Exists(completedFilePath)) File.Delete(completedFilePath);
-            File.Move(filePath, completedFilePath);
-
-            return (filename, completedFilePath);
+            var moveResult = FileOps.TryMove(filePath, completedFilePath);
+            return moveResult.IsOk
+                ? Result<(string, string)>.Ok((filename, completedFilePath))
+                : Result<(string, string)>.Fail($"Failed to move file: {moveResult.Error}");
         }
 
         HttpResponseMessage response;
@@ -234,7 +242,9 @@ public class DownloadService
                 freshRequest.Headers.Referrer = new Uri(vaultUrl);
                 freshRequest.Headers.Add("Sec-Fetch-Site", "cross-site");
                 response = await http.SendAsync(freshRequest, HttpCompletionOption.ResponseHeadersRead, ct);
-                response.EnsureSuccessStatusCode();
+
+                if (!response.IsSuccessStatusCode)
+                    return Result<(string, string)>.Fail($"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
             }
         }
         else
@@ -283,9 +293,9 @@ public class DownloadService
         if (!resumed) response.Dispose();
 
         // Move to completed
-        if (File.Exists(completedFilePath)) File.Delete(completedFilePath);
-        File.Move(filePath, completedFilePath);
-
-        return (filename, completedFilePath);
+        var finalMove = FileOps.TryMove(filePath, completedFilePath);
+        return finalMove.IsOk
+            ? Result<(string, string)>.Ok((filename, completedFilePath))
+            : Result<(string, string)>.Fail($"Failed to move to completed: {finalMove.Error}");
     }
 }

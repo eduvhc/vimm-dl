@@ -50,27 +50,39 @@ var app = builder.Build();
 
 // Init DB
 var repo = app.Services.GetRequiredService<QueueRepository>();
-repo.Init(app.Configuration.GetConnectionString("Default"));
+await repo.InitAsync(app.Configuration.GetConnectionString("Default"),
+    app.Services.GetRequiredService<ILogger<QueueRepository>>());
 
-// Clean up orphaned temp files from previous crashes
+// Prune old events (7-day retention, 50k max rows)
+await repo.PruneEventsAsync();
+
+// Seed pipeline state from DB + clean up orphans
 {
     var dlBase = repo.GetDownloadPath();
     var ps3Pipeline = app.Services.GetRequiredService<Module.Ps3Pipeline.Ps3ConversionPipeline>();
-    var parallelism = int.TryParse(repo.GetSetting(SettingsKeys.Ps3Parallelism), out var p) ? p : 3;
+    var parallelism = int.TryParse(await repo.GetSettingAsync(SettingsKeys.Ps3Parallelism), out var p) ? p : 3;
     ps3Pipeline.Configure(parallelism);
+
+    // Migrate .ps3converted file to DB (one-time)
+    await repo.MigratePs3ConvertedFileAsync(dlBase);
+
+    // Seed converted set from DB before CleanupOrphans checks IsConverted()
+    var convertedNames = await repo.GetConvertedFilenamesAsync();
+    ps3Pipeline.SeedConverted(convertedNames);
+
     ps3Pipeline.CleanupOrphans(dlBase);
-    app.Services.GetRequiredService<Module.Sync.SyncService>().Configure(dlBase, repo.GetSyncPath());
+    app.Services.GetRequiredService<Module.Sync.SyncService>().Configure(dlBase, await repo.GetSyncPathAsync());
 }
 
 // Auto-resume: if there are queued URLs, start downloading on app launch
-if (repo.HasQueuedUrls())
+if (await repo.HasQueuedUrlsAsync())
 {
     _ = Task.Run(async () =>
     {
         await Task.Delay(1500);
         var queue = app.Services.GetRequiredService<DownloadQueue>();
         if (!queue.IsRunning)
-            queue.Start(repo.GetDownloadPath());
+            await queue.StartAsync(repo.GetDownloadPath());
     });
 }
 
@@ -85,18 +97,20 @@ app.MapMetadataEndpoints();
 app.MapPs3Endpoints();
 app.MapSyncEndpoints();
 app.MapSettingsEndpoints();
+app.MapEventEndpoints();
+app.MapMetricsEndpoints();
 
 // Auto-resume: if there are queued items, start downloading on startup
 {
     var logger = app.Services.GetRequiredService<ILogger<DownloadQueue>>();
     var queueRepo = app.Services.GetRequiredService<QueueRepository>();
     var dlQueue = app.Services.GetRequiredService<DownloadQueue>();
-    var hasQueued = queueRepo.HasQueuedUrls();
+    var hasQueued = await queueRepo.HasQueuedUrlsAsync();
     logger.LogInformation("Auto-resume check: hasQueued={HasQueued}, isRunning={IsRunning}", hasQueued, dlQueue.IsRunning);
     if (hasQueued && !dlQueue.IsRunning)
     {
         logger.LogInformation("Auto-resuming download queue");
-        dlQueue.Start(null);
+        await dlQueue.StartAsync(null);
     }
 }
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Module.Core;
 
 namespace Module.Ps3IsoTools;
 
@@ -13,8 +14,6 @@ public class ConversionOptions
     public bool RenameToGameNameId { get; set; } = true;
     public bool DeleteSourceAfter { get; set; } = false;
 }
-
-public record ConversionResult(bool Success, string? IsoPath, string? Error);
 
 public class Ps3IsoConverter(ConversionOptions options)
 {
@@ -45,7 +44,7 @@ public class Ps3IsoConverter(ConversionOptions options)
     /// <summary>
     /// Convert a JB folder to ISO. Folder must contain PS3_GAME/PARAM.SFO.
     /// </summary>
-    public async Task<ConversionResult> ConvertFolderToIsoAsync(
+    public async Task<Result<string>> ConvertFolderToIsoAsync(
         string jbFolder,
         string outputDir,
         Action<string>? onStatus = null,
@@ -53,11 +52,11 @@ public class Ps3IsoConverter(ConversionOptions options)
     {
         var paramSfoPath = Path.Combine(jbFolder, "PS3_GAME", "PARAM.SFO");
         if (!File.Exists(paramSfoPath))
-            return new ConversionResult(false, null, $"PARAM.SFO not found at {paramSfoPath}");
+            return Result<string>.Fail($"PARAM.SFO not found at {paramSfoPath}");
 
         var sfo = ParamSfo.Parse(paramSfoPath);
         if (sfo == null)
-            return new ConversionResult(false, null, "Failed to parse PARAM.SFO");
+            return Result<string>.Fail("Failed to parse PARAM.SFO");
 
         onStatus?.Invoke($"Converting: {sfo.Title} [{sfo.TitleId}]");
 
@@ -78,7 +77,7 @@ public class Ps3IsoConverter(ConversionOptions options)
 
             var (makeOk, makeOutput) = await RunProcessAsync(options.Makeps3isoPath, makeArgs, ct);
             if (!makeOk || !File.Exists(tempIsoPath))
-                return new ConversionResult(false, null, $"makeps3iso failed: {makeOutput}");
+                return Result<string>.Fail($"makeps3iso failed: {makeOutput}");
 
             if (options.PatchFirmware)
             {
@@ -87,24 +86,22 @@ public class Ps3IsoConverter(ConversionOptions options)
                     $"-p0 \"{tempIsoPath}\" {options.FirmwareVersion}", ct);
             }
 
-            if (File.Exists(finalIsoPath))
-                File.Delete(finalIsoPath);
-            File.Move(tempIsoPath, finalIsoPath);
+            var moveResult = FileOps.TryMove(tempIsoPath, finalIsoPath);
+            if (!moveResult.IsOk)
+                return Result<string>.Fail($"Failed to move ISO: {moveResult.Error}");
 
             var sizeMb = new FileInfo(finalIsoPath).Length / (1024.0 * 1024.0);
             onStatus?.Invoke($"ISO created: {isoName} ({sizeMb:F2} MB)");
 
             if (options.DeleteSourceAfter)
-            {
-                try { Directory.Delete(jbFolder, true); } catch { }
-            }
+                FileOps.TryDeleteDirectory(jbFolder);
 
-            return new ConversionResult(true, finalIsoPath, null);
+            return Result<string>.Ok(finalIsoPath);
         }
         catch (Exception ex)
         {
-            try { if (File.Exists(tempIsoPath)) File.Delete(tempIsoPath); } catch { }
-            return new ConversionResult(false, null, ex.Message);
+            FileOps.TryDelete(tempIsoPath);
+            return Result<string>.Fail(ex.Message);
         }
     }
 

@@ -15,34 +15,50 @@ Open **http://localhost:5000**, paste vault URLs, done.
 
 ## Volumes
 
-| Volume | Type | Purpose |
-|--------|------|---------|
-| `/app/data` | Named volume | SQLite database (queue, metadata cache). Use a named volume — bind mounts can conflict with SQLite WAL on some hosts |
-| `/downloads` | Bind mount | Your files. Contains `downloading/`, `completed/` (archives + ISOs), and `ps3_temp/` (auto-cleaned) |
+| Volume | Type | Required | Purpose |
+|--------|------|----------|---------|
+| `/app/data` | Named volume | Yes | SQLite database (queue, metadata, events, settings). Use a named volume — bind mounts can conflict with SQLite WAL on some hosts |
+| `/downloads` | Bind mount | Yes | All files: `downloading/` (partial), `completed/` (archives + ISOs), `ps3_temp/` (auto-cleaned). Download path auto-detected when this volume is mounted |
+| `/sync-target` | Bind mount | No | External drive for Sync feature. Mount your USB/NAS path here, then set sync path to `/sync-target` in Settings |
 
-**Bind mount examples for `/downloads`:**
+> **Note:** Sync is in beta and needs more testing. Enable it in Settings under Feature Flags.
+
+**Examples:**
 
 ```bash
 # Linux / macOS
--v ~/Downloads:/downloads
+docker run -d -p 5000:5000 \
+  -v vimm-data:/app/data \
+  -v ~/Downloads:/downloads \
+  --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 
-# Windows (PowerShell)
--v ${HOME}\Downloads:/downloads
+# With sync to external drive
+docker run -d -p 5000:5000 \
+  -v vimm-data:/app/data \
+  -v ~/Downloads:/downloads \
+  -v /mnt/usb/PS3ISO:/sync-target \
+  --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 
-# Windows (CMD)
--v %USERPROFILE%\Downloads:/downloads
-
-# Custom path
--v /mnt/games:/downloads
+# Windows
+docker run -d -p 5000:5000 \
+  -v vimm-data:/app/data \
+  -v %USERPROFILE%\Downloads:/downloads \
+  --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 ```
 
 ## Features
 
-- Paste URLs in any format — downloads start automatically
+- Paste URLs — downloads start automatically with format fallback
 - Pause/resume with HTTP Range, auto-resume on restart
 - PS3 JB Folder → ISO conversion (parallel pipeline, crash recovery)
-- Archive validation, multithreaded extraction
-- Real-time progress, platform icons, format selection
+- PS3 .dec.iso download + rename (default format, configurable)
+- Archive validation, multithreaded extraction, optional archive preservation
+- Real-time progress, platform icons, format selection, drag-and-drop queue
+- Metrics dashboard — download speed chart, disk usage, system info
+- Event audit log — full event history with filters and detail view
+- JSON import/export with background metadata fetch
+- Feature flags (Beta/Developer) for Sync and Events tabs
+- Per-platform settings (PS3 default format, rename rules, parallelism)
 - Native AOT — fast startup, small footprint, no runtime needed
 
 ## Thanks ❤️

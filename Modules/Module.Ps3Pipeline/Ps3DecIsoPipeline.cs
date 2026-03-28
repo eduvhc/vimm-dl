@@ -32,24 +32,22 @@ public class Ps3DecIsoPipeline
 
         await _state.EmitStatus(filename, Ps3Phase.Converting, "Renaming .dec.iso to .iso...");
 
-        try
+        var moveResult = FileOps.TryMove(filePath, newPath);
+        if (moveResult.IsOk)
         {
-            if (File.Exists(newPath)) File.Delete(newPath);
-            File.Move(filePath, newPath);
-
             await _state.EmitStatus(filename, Ps3Phase.Done, $"ISO ready: {newName}", newName);
             _state.AddToConvertedList(filename);
             _state.Log.LogInformation("Renamed {Old} -> {New}", filename, newName);
         }
-        catch (Exception ex)
+        else
         {
-            await _state.EmitStatus(filename, Ps3Phase.Error, $"Rename failed: {ex.Message}");
-            _state.Log.LogError(ex, "Failed to rename {File}", filename);
+            await _state.EmitStatus(filename, Ps3Phase.Error, $"Rename failed: {moveResult.Error}");
+            _state.Log.LogError("Failed to rename {File}: {Error}", filename, moveResult.Error);
         }
     }
 
     public async Task ExtractAndRenameDecIsoAsync(string archivePath, string completedDir, string tempBaseDir,
-        string? serial = null, IsoRenameOptions? renameOptions = null)
+        string? serial = null, IsoRenameOptions? renameOptions = null, bool deleteArchive = false)
     {
         var archiveName = Path.GetFileName(archivePath);
         var tempDir = Path.Combine(tempBaseDir, Guid.NewGuid().ToString("N"));
@@ -57,45 +55,46 @@ public class Ps3DecIsoPipeline
         try
         {
             await _state.EmitStatus(archiveName, Ps3Phase.Extracting, "Checking archive\u2026");
-            var (headerOk, headerErr) = await ZipExtract.QuickCheckAsync(archivePath);
-            if (!headerOk)
+            var headerCheck = await ZipExtract.QuickCheckAsync(archivePath);
+            if (!headerCheck.IsOk)
             {
-                await _state.EmitStatus(archiveName, Ps3Phase.Error, $"Archive corrupted: {headerErr}");
+                await _state.EmitStatus(archiveName, Ps3Phase.Error, $"Archive corrupted: {headerCheck.Error}");
                 return;
             }
 
             Directory.CreateDirectory(tempBaseDir);
             await _state.EmitStatus(archiveName, Ps3Phase.Extracting, "Extracting 0%");
 
-            var (ok, error) = await ZipExtract.ExtractAsync(archivePath, tempDir,
+            var extractResult = await ZipExtract.ExtractAsync(archivePath, tempDir,
                 onProgress: pct => _state.EmitStatus(archiveName, Ps3Phase.Extracting, $"Extracting {pct}%").GetAwaiter().GetResult());
 
-            if (!ok)
+            if (!extractResult.IsOk)
             {
-                await _state.EmitStatus(archiveName, Ps3Phase.Error, $"Extraction failed: {error}");
+                await _state.EmitStatus(archiveName, Ps3Phase.Error, $"Extraction failed: {extractResult.Error}");
                 return;
             }
 
-            if (!await HandleExtractedArchive(archiveName, tempDir, completedDir, serial, renameOptions))
+            var handleResult = await HandleExtractedArchive(archiveName, tempDir, completedDir, serial, renameOptions);
+            if (!handleResult.IsOk)
             {
                 await _state.EmitStatus(archiveName, Ps3Phase.Error, "No .dec.iso or .iso found in archive");
                 return;
             }
 
-            try { if (File.Exists(archivePath)) File.Delete(archivePath); } catch { }
+            if (deleteArchive)
+                FileOps.TryDelete(archivePath);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            await _state.EmitStatus(archiveName, Ps3Phase.Error, $"Extract+rename failed: {ex.Message}");
-            _state.Log.LogError(ex, "Failed to extract and rename dec.iso from {File}", archiveName);
+            await _state.EmitStatus(archiveName, Ps3Phase.Error, "Aborted by user");
         }
         finally
         {
-            try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+            FileOps.TryDeleteDirectory(tempDir);
         }
     }
 
-    public async Task<bool> HandleExtractedArchive(string archiveName, string sourceDir, string completedDir,
+    public async Task<Result<string?>> HandleExtractedArchive(string archiveName, string sourceDir, string completedDir,
         string? serial = null, IsoRenameOptions? renameOptions = null)
     {
         var decIsos = Directory.GetFiles(sourceDir, $"*{FileExtensions.DecIso}", SearchOption.AllDirectories);
@@ -107,13 +106,14 @@ public class Ps3DecIsoPipeline
                 var isoName = IsoFilenameFormatter.Format(Path.GetFileName(decIso), serial, renameOptions);
                 firstIsoName ??= isoName;
                 var destPath = Path.Combine(completedDir, isoName);
-                if (File.Exists(destPath)) File.Delete(destPath);
-                File.Move(decIso, destPath);
+                var moveResult = FileOps.TryMove(decIso, destPath);
+                if (!moveResult.IsOk)
+                    return Result<string?>.Fail($"Failed to move {isoName}: {moveResult.Error}");
                 _state.Log.LogInformation("Extracted and renamed {Archive} -> {Iso}", archiveName, isoName);
             }
             await _state.EmitStatus(archiveName, Ps3Phase.Done, $"ISO ready: {firstIsoName}", firstIsoName);
             _state.AddToConvertedList(archiveName);
-            return true;
+            return Result<string?>.Ok(firstIsoName);
         }
 
         var isos = Directory.GetFiles(sourceDir, $"*{FileExtensions.Iso}", SearchOption.AllDirectories);
@@ -127,15 +127,16 @@ public class Ps3DecIsoPipeline
                     : Path.GetFileName(iso);
                 firstIsoName ??= isoName;
                 var destPath = Path.Combine(completedDir, isoName);
-                if (File.Exists(destPath)) File.Delete(destPath);
-                File.Move(iso, destPath);
+                var moveResult = FileOps.TryMove(iso, destPath);
+                if (!moveResult.IsOk)
+                    return Result<string?>.Fail($"Failed to move {isoName}: {moveResult.Error}");
                 _state.Log.LogInformation("Extracted ISO from archive: {Archive} -> {Iso}", archiveName, isoName);
             }
             await _state.EmitStatus(archiveName, Ps3Phase.Done, $"ISO ready: {firstIsoName}", firstIsoName);
             _state.AddToConvertedList(archiveName);
-            return true;
+            return Result<string?>.Ok(firstIsoName);
         }
 
-        return false;
+        return Result<string?>.Fail("No .dec.iso or .iso found");
     }
 }

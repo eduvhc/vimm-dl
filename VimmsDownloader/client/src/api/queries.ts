@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
   DataResponse, VersionResponse, SettingsResponse, MetaResponse,
   QueueImportResponse, Ps3ConvertResponse, SyncCompareResponse, QueueExportItem,
+  EventsResponse, MetricsResponse,
 } from '../types/api'
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -17,7 +18,8 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) throw new Error(await res.text())
-  return res.json()
+  const text = await res.text()
+  return text ? JSON.parse(text) : (undefined as T)
 }
 
 async function del(url: string): Promise<void> {
@@ -50,7 +52,6 @@ export function useSettings() {
   return useQuery({
     queryKey: ['settings'],
     queryFn: () => fetchJson<SettingsResponse>('/api/settings'),
-    staleTime: Infinity,
   })
 }
 
@@ -130,7 +131,8 @@ export function useClearQueue() {
 export function useDeleteCompleted() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => del(`/api/completed/${id}`),
+    mutationFn: ({ id, deleteFiles }: { id: number; deleteFiles?: boolean }) =>
+      del(`/api/completed/${id}${deleteFiles ? '?deleteFiles=true' : ''}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['data'] }),
   })
 }
@@ -187,5 +189,29 @@ export function useSyncCopy() {
 export function useSyncCancel() {
   return useMutation({
     mutationFn: () => postJson('/api/sync/cancel'),
+  })
+}
+
+// --- Events ---
+
+export function useEvents(type?: string, item?: string, limit = 100) {
+  const params = new URLSearchParams()
+  params.set('limit', limit.toString())
+  if (type) params.set('type', type)
+  if (item) params.set('item', item)
+  return useQuery({
+    queryKey: ['events', type, item, limit],
+    queryFn: () => fetchJson<EventsResponse>(`/api/events?${params}`),
+    refetchInterval: 5000,
+  })
+}
+
+// --- Metrics ---
+
+export function useMetrics() {
+  return useQuery({
+    queryKey: ['metrics'],
+    queryFn: () => fetchJson<MetricsResponse>('/api/metrics'),
+    refetchInterval: 10000,
   })
 }

@@ -9,7 +9,7 @@ public record DownloadItem(int Id, string Url, int Format);
 /// </summary>
 public interface IDownloadItemProvider
 {
-    DownloadItem? GetNext();
-    void Complete(int id, string url, string filename, string filepath);
-    void Remove(int id);
+    Task<DownloadItem?> GetNextAsync();
+    Task CompleteAsync(int id, string url, string filename, string filepath);
+    Task RemoveAsync(int id);
 }

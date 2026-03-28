@@ -8,11 +8,11 @@ public class ZipExtractTests : ExtractorTestBase
     {
         var bogus = Path.Combine(Tmp.Root, "nonexistent.7z");
 
-        var (valid, error) = await ZipExtract.QuickCheckAsync(bogus);
+        var result = await ZipExtract.QuickCheckAsync(bogus);
 
-        Assert.IsFalse(valid);
-        Assert.IsNotNull(error);
-        StringAssert.Contains(error, "not found");
+        Assert.IsFalse(result.IsOk);
+        Assert.IsNotNull(result.Error);
+        StringAssert.Contains(result.Error, "not found");
     }
 
     [TestMethod]
@@ -21,10 +21,10 @@ public class ZipExtractTests : ExtractorTestBase
         var bogus = Path.Combine(Tmp.Root, "nonexistent.7z");
         var outDir = Tmp.CreateSubDir("output");
 
-        var (success, error) = await ZipExtract.ExtractAsync(bogus, outDir);
+        var result = await ZipExtract.ExtractAsync(bogus, outDir);
 
-        Assert.IsFalse(success);
-        Assert.IsNotNull(error);
-        StringAssert.Contains(error, "not found");
+        Assert.IsFalse(result.IsOk);
+        Assert.IsNotNull(result.Error);
+        StringAssert.Contains(result.Error, "not found");
     }
 }

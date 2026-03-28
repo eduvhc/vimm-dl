@@ -27,6 +27,20 @@ export interface FormatOption {
   size: string
 }
 
+export interface TraceStep {
+  name: string
+  status: 'pending' | 'active' | 'done' | 'error' | 'skipped'
+  message: string | null
+}
+
+export interface PipelineTrace {
+  pipelineType: string
+  steps: TraceStep[]
+  isoFilename: string | null
+  isoSize: number | null
+  actions: string[]
+}
+
 export interface HistoryItem {
   id: number
   url: string
@@ -37,11 +51,7 @@ export interface HistoryItem {
   size: string | null
   fileExists: boolean
   fileSize: number | null
-  isoFilename: string | null
-  isoExists: boolean
-  isoSize: number | null
-  convPhase: string | null
-  convMessage: string | null
+  trace: PipelineTrace | null
   completedAt: string | null
 }
 
@@ -82,7 +92,12 @@ export interface SettingsResponse {
   fixThe: boolean
   addSerial: boolean
   stripRegion: boolean
+  ipv4: string
   ps3Parallelism: number
+  ps3DefaultFormat: number
+  ps3PreserveArchive: boolean
+  featureSync: boolean
+  featureEvents: boolean
 }
 
 export interface CheckPathResponse {
@@ -119,4 +134,32 @@ export interface SyncDiskInfo {
 export interface SyncFileInfo {
   name: string
   size: number
+}
+
+export interface MetricsResponse {
+  diskFreeBytes: number
+  diskTotalBytes: number
+  queuedTotalBytes: number
+  queuedCount: number
+  completedTotalBytes: number
+  completedCount: number
+  orphanedTotalBytes: number
+  orphanedCount: number
+  downloadingTotalBytes: number
+  downloadingCount: number
+}
+
+export interface EventRow {
+  id: number
+  itemName: string
+  eventType: string
+  phase: string | null
+  message: string | null
+  data: string | null
+  timestamp: string
+}
+
+export interface EventsResponse {
+  events: EventRow[]
+  total: number
 }

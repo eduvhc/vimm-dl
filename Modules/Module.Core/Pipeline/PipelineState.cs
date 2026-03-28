@@ -15,7 +15,6 @@ public class PipelineState
     public readonly ConcurrentDictionary<string, CancellationTokenSource> Cancellations = new();
     private readonly HashSet<string> _convertedSet = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _convertedLock = new();
-    private string? _convertedFilePath;
 
     public PipelineState(IModuleBridge<PipelineStatusEvent> bridge, ILogger log)
     {
@@ -41,19 +40,7 @@ public class PipelineState
     public void AddToConvertedList(string name)
     {
         lock (_convertedLock)
-        {
-            if (!_convertedSet.Add(name)) return;
-            if (_convertedFilePath != null)
-            {
-                try
-                {
-                    var dir = Path.GetDirectoryName(_convertedFilePath);
-                    if (dir != null) Directory.CreateDirectory(dir);
-                    File.AppendAllText(_convertedFilePath, name + "\n");
-                }
-                catch { }
-            }
-        }
+            _convertedSet.Add(name);
     }
 
     public void MarkConverted(string name)
@@ -62,20 +49,12 @@ public class PipelineState
         AddToConvertedList(name);
     }
 
-    public void SetConvertedFilePath(string path)
+    public void SeedConverted(IEnumerable<string> names)
     {
-        _convertedFilePath = path;
-    }
-
-    public void LoadConvertedList()
-    {
-        if (_convertedFilePath == null || !File.Exists(_convertedFilePath)) return;
         lock (_convertedLock)
         {
-            foreach (var line in File.ReadAllLines(_convertedFilePath))
+            foreach (var name in names)
             {
-                var name = line.Trim();
-                if (name.Length == 0) continue;
                 _convertedSet.Add(name);
                 Statuses.TryAdd(name, new PipelineStatusEvent(name, PipelinePhase.Done, "Previously converted"));
             }

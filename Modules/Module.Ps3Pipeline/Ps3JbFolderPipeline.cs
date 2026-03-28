@@ -67,7 +67,7 @@ public class Ps3JbFolderPipeline
                     }
                 }
                 _state.Log.LogInformation("Cleaning orphaned PS3 temp dir: {Path}", dir);
-                try { Directory.Delete(dir, true); } catch { }
+                FileOps.TryDeleteDirectory(dir);
             }
         }
 
@@ -76,12 +76,10 @@ public class Ps3JbFolderPipeline
             foreach (var f in Directory.GetFiles(completedDir, "temp_*.iso"))
             {
                 _state.Log.LogInformation("Cleaning orphaned temp ISO: {Path}", f);
-                try { File.Delete(f); } catch { }
+                FileOps.TryDelete(f);
             }
         }
 
-        _state.SetConvertedFilePath(Path.Combine(completedDir, ".ps3converted"));
-        _state.LoadConvertedList();
     }
 
     public bool Enqueue(string zipPath, string completedDir, string tempBaseDir, bool force = false)
@@ -133,11 +131,11 @@ public class Ps3JbFolderPipeline
                 }
 
                 await _state.EmitStatus(zipName, Ps3Phase.Extracting, "Checking archive\u2026");
-                var (headerOk, headerErr) = await ZipExtract.QuickCheckAsync(job.ZipPath, ct);
-                if (!headerOk)
+                var headerCheck = await ZipExtract.QuickCheckAsync(job.ZipPath, ct);
+                if (!headerCheck.IsOk)
                 {
                     await _state.EmitStatus(zipName, Ps3Phase.Error,
-                        ct.IsCancellationRequested ? "Aborted by user" : $"Archive corrupted: {headerErr}");
+                        ct.IsCancellationRequested ? "Aborted by user" : $"Archive corrupted: {headerCheck.Error}");
                     continue;
                 }
 
@@ -158,13 +156,13 @@ public class Ps3JbFolderPipeline
                 tempDir = Path.Combine(job.TempBaseDir, Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(job.TempBaseDir);
 
-                var (ok, error) = await ZipExtract.ExtractAsync(job.ZipPath, tempDir,
+                var extractResult = await ZipExtract.ExtractAsync(job.ZipPath, tempDir,
                     onProgress: pct => _state.EmitStatus(zipName, Ps3Phase.Extracting, $"Extracting {pct}%").GetAwaiter().GetResult(), ct);
-                if (!ok)
+                if (!extractResult.IsOk)
                 {
                     await _state.EmitStatus(zipName, Ps3Phase.Error,
-                        ct.IsCancellationRequested ? "Aborted by user" : $"Extraction failed: {error}");
-                    try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+                        ct.IsCancellationRequested ? "Aborted by user" : $"Extraction failed: {extractResult.Error}");
+                    FileOps.TryDeleteDirectory(tempDir);
                     continue;
                 }
 
@@ -172,20 +170,16 @@ public class Ps3JbFolderPipeline
                 if (jbFolder == null)
                 {
                     var handled = await _decIso.HandleExtractedArchive(zipName, tempDir, job.CompletedDir);
-                    if (!handled)
+                    if (!handled.IsOk)
                         await _state.EmitStatus(zipName, Ps3Phase.Skipped, "No PS3 JB folder or ISO found in archive");
-                    try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+                    FileOps.TryDeleteDirectory(tempDir);
                     continue;
                 }
 
-                try
-                {
-                    File.WriteAllText(Path.Combine(tempDir, ".extraction_complete"), $"{zipName}\n{jbFolder}\n");
-                }
-                catch (Exception ex)
-                {
-                    _state.Log.LogWarning(ex, "Failed to write extraction marker for {Zip}", zipName);
-                }
+                var markerResult = FileOps.TryWriteAllText(
+                    Path.Combine(tempDir, ".extraction_complete"), $"{zipName}\n{jbFolder}\n");
+                if (!markerResult.IsOk)
+                    _state.Log.LogWarning("Failed to write extraction marker for {Zip}: {Error}", zipName, markerResult.Error);
 
                 await _state.EmitStatus(zipName, Ps3Phase.Extracted, "Queued for ISO conversion...");
                 _convertQueue.Writer.TryWrite(new ConvertJob(jbFolder, tempDir, zipName, job.CompletedDir));
@@ -193,13 +187,7 @@ public class Ps3JbFolderPipeline
             catch (OperationCanceledException)
             {
                 await _state.EmitStatus(zipName, Ps3Phase.Error, "Aborted by user");
-                if (tempDir != null) try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
-            }
-            catch (Exception ex)
-            {
-                await _state.EmitStatus(zipName, Ps3Phase.Error, $"Extract error: {ex.Message}");
-                _state.Log.LogError(ex, "Extract failed for {Zip}", zipName);
-                if (tempDir != null) try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+                if (tempDir != null) FileOps.TryDeleteDirectory(tempDir);
             }
             finally { _state.Cancellations.TryRemove(zipName, out _); }
         }
@@ -214,7 +202,7 @@ public class Ps3JbFolderPipeline
             if (ct.IsCancellationRequested)
             {
                 _state.Cancellations.TryRemove(job.ZipName, out _);
-                try { if (Directory.Exists(job.TempDir)) Directory.Delete(job.TempDir, true); } catch { }
+                FileOps.TryDeleteDirectory(job.TempDir);
                 continue;
             }
 
@@ -225,12 +213,12 @@ public class Ps3JbFolderPipeline
                 var result = await converter.ConvertFolderToIsoAsync(job.JbFolder, job.CompletedDir,
                     onStatus: msg => _state.EmitStatus(job.ZipName, Ps3Phase.Converting, msg).GetAwaiter().GetResult(), ct);
 
-                if (result.Success)
+                if (result.IsOk)
                 {
-                    var isoName = Path.GetFileName(result.IsoPath);
+                    var isoName = Path.GetFileName(result.Value);
                     await _state.EmitStatus(job.ZipName, Ps3Phase.Done, $"ISO ready: {isoName}", isoName);
                     _state.AddToConvertedList(job.ZipName);
-                    _state.Log.LogInformation("PS3 ISO created: {IsoPath}", result.IsoPath);
+                    _state.Log.LogInformation("PS3 ISO created: {IsoPath}", result.Value);
                 }
                 else
                 {
@@ -242,16 +230,11 @@ public class Ps3JbFolderPipeline
             {
                 await _state.EmitStatus(job.ZipName, Ps3Phase.Error, "Aborted by user");
             }
-            catch (Exception ex)
-            {
-                await _state.EmitStatus(job.ZipName, Ps3Phase.Error, $"Convert error: {ex.Message}");
-                _state.Log.LogError(ex, "Convert failed for {Zip}", job.ZipName);
-            }
             finally
             {
                 _state.Cancellations.TryRemove(job.ZipName, out _);
                 var tempToDelete = job.TempDir;
-                _ = Task.Run(() => { try { if (Directory.Exists(tempToDelete)) Directory.Delete(tempToDelete, true); } catch { } });
+                _ = Task.Run(() => FileOps.TryDeleteDirectory(tempToDelete));
             }
         }
     }

@@ -1,4 +1,4 @@
-import { useState, useReducer, useEffect } from 'react'
+import { useState, useMemo, useReducer, useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Header } from './components/layout/Header'
 import { Toolbar } from './components/layout/Toolbar'
@@ -11,9 +11,11 @@ import { ActivePanel } from './components/active/ActivePanel'
 import { CompletedPanel } from './components/completed/CompletedPanel'
 import { SyncPanel } from './components/sync/SyncPanel'
 import { SettingsPanel } from './components/layout/SettingsPanel'
+import { EventsPanel } from './components/events/EventsPanel'
+import { MetricsPanel } from './components/metrics/MetricsPanel'
 import { DownloadContext, downloadReducer, initialState } from './hooks/useDownloadState'
 import { useSignalR } from './hooks/useSignalR'
-import { useData } from './api/queries'
+import { useData, useSettings } from './api/queries'
 import { parseProgress } from './lib/format'
 
 const queryClient = new QueryClient({
@@ -30,6 +32,7 @@ function AppContent() {
   const [state, dispatch] = useReducer(downloadReducer, initialState)
   const connection = useSignalR(dispatch)
   const { data } = useData()
+  const { data: settings } = useSettings()
 
   // Restore running state from /api/data response
   useEffect(() => {
@@ -67,8 +70,21 @@ function AppContent() {
   const counts = {
     active: queued.length + convertingCount,
     completed: history.length,
+    events: 0,
     sync: 0,
   }
+
+  const hiddenTabs = useMemo(() => {
+    const hidden = new Set<Tab>()
+    if (!settings?.featureSync) hidden.add('sync')
+    if (!settings?.featureEvents) hidden.add('events')
+    return hidden
+  }, [settings?.featureSync, settings?.featureEvents])
+
+  // If the active tab gets hidden, fall back to 'active'
+  useEffect(() => {
+    if (hiddenTabs.has(activeTab)) setActiveTab('active')
+  }, [hiddenTabs, activeTab])
 
   return (
     <DownloadContext.Provider value={{ state, dispatch, connection }}>
@@ -78,10 +94,12 @@ function AppContent() {
         <Toolbar />
         <ControlBar />
         <ErrorBanner />
-        <TabBar activeTab={activeTab} onTabChange={setActiveTab} counts={counts} />
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} counts={counts} hiddenTabs={hiddenTabs} />
         <main className="flex-1 overflow-hidden">
           {activeTab === 'active' && <ActivePanel />}
           {activeTab === 'completed' && <CompletedPanel />}
+          {activeTab === 'metrics' && <MetricsPanel />}
+          {activeTab === 'events' && <EventsPanel />}
           {activeTab === 'sync' && <SyncPanel />}
           {activeTab === 'settings' && <SettingsPanel />}
         </main>

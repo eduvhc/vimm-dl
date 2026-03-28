@@ -13,7 +13,7 @@ export function Toolbar() {
     const urls = parseUrls(text)
     if (urls.length === 0) return
 
-    await addMutation.mutateAsync({ urls })
+    await addMutation.mutateAsync({ urls, format: config?.ps3DefaultFormat ?? 1 })
     setText('')
 
     if (!state.running && connection) {

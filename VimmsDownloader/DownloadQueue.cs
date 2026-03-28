@@ -35,7 +35,7 @@ class DownloadQueue
     public void Stop() => _service.Stop();
     public void Pause() => _service.Pause();
 
-    public void Start(string? overridePath)
+    public async Task StartAsync(string? overridePath)
     {
         _service.Configure(_repo.GetDownloadPath());
         _service.Start(_provider, overridePath);
@@ -43,12 +43,12 @@ class DownloadQueue
 
     private async Task HandlePostDownload(string url, string filename, string completedFilePath, int format)
     {
-        var dlMeta = _repo.GetMeta(url);
+        var dlMeta = await _repo.GetMetaAsync(url);
         if (dlMeta == null || !Module.Core.Platforms.IsPS3(dlMeta.Platform))
             return;
 
         var serial = dlMeta.Serial;
-        var renameOpts = LoadRenameOptions();
+        var renameOpts = await LoadRenameOptionsAsync();
         var downloadPath = _service.GetBasePath();
 
         var completedDir = Path.Combine(downloadPath, "completed");
@@ -64,14 +64,21 @@ class DownloadQueue
         }
         else if (format > 0 && Module.Core.FileExtensions.IsArchive(filename))
         {
+            var deleteArchive = !await IsPreserveArchiveAsync();
             _ = Task.Run(() => _ps3Pipeline.DecIso.ExtractAndRenameDecIsoAsync(
-                completedFilePath, completedDir, tempBaseDir, serial, renameOpts));
+                completedFilePath, completedDir, tempBaseDir, serial, renameOpts, deleteArchive));
         }
     }
 
-    private IsoRenameOptions LoadRenameOptions()
+    private async Task<bool> IsPreserveArchiveAsync()
     {
-        var s = _repo.GetAllSettings();
+        var val = await _repo.GetSettingAsync(SettingsKeys.Ps3PreserveArchive);
+        return val != "false";
+    }
+
+    private async Task<IsoRenameOptions> LoadRenameOptionsAsync()
+    {
+        var s = await _repo.GetAllSettingsAsync();
         return new IsoRenameOptions(
             FixThe: s.GetValueOrDefault(SettingsKeys.FixThe, "true") == "true",
             AddSerial: s.GetValueOrDefault(SettingsKeys.AddSerial, "true") == "true",
