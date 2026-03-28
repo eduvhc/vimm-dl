@@ -325,7 +325,7 @@ class QueueRepository
         return (r.GetInt32(0), r.GetString(1), r.GetInt32(2));
     }
 
-    public async Task CompleteItemAsync(int id, string url, string filename, string filepath)
+    public async Task CompleteItemAsync(int id, string url, string filename, string filepath, int format)
     {
         await using var db = await OpenAsync();
         await using var tx = await db.BeginTransactionAsync();
@@ -334,10 +334,11 @@ class QueueRepository
             await ExecTxAsync(db, (SqliteTransaction)tx, "DELETE FROM queued_urls WHERE id = $id", ("$id", id));
             await using var ins = db.CreateCommand();
             ins.Transaction = (SqliteTransaction)tx;
-            ins.CommandText = "INSERT INTO completed_urls (url, filename, filepath, completed_at) VALUES ($url, $filename, $filepath, datetime('now'))";
+            ins.CommandText = "INSERT INTO completed_urls (url, filename, filepath, completed_at, format) VALUES ($url, $filename, $filepath, datetime('now'), $format)";
             ins.Parameters.AddWithValue("$url", url);
             ins.Parameters.AddWithValue("$filename", filename);
             ins.Parameters.AddWithValue("$filepath", filepath);
+            ins.Parameters.AddWithValue("$format", format);
             await ins.ExecuteNonQueryAsync();
             await tx.CommitAsync();
         }
@@ -393,7 +394,7 @@ class QueueRepository
         cmd.CommandText = """
             SELECT c.id, c.url, c.filename, c.filepath, c.completed_at,
                    m.title, m.platform, m.size,
-                   c.conv_phase, c.conv_message, c.iso_filename
+                   c.conv_phase, c.conv_message, c.iso_filename, c.format
             FROM completed_urls c
             LEFT JOIN url_meta m ON c.url = m.url
             ORDER BY c.id DESC
@@ -410,7 +411,8 @@ class QueueRepository
                 r.IsDBNull(7) ? null : r.GetString(7),
                 r.IsDBNull(8) ? null : r.GetString(8),
                 r.IsDBNull(9) ? null : r.GetString(9),
-                r.IsDBNull(10) ? null : r.GetString(10)));
+                r.IsDBNull(10) ? null : r.GetString(10),
+                r.IsDBNull(11) ? null : r.GetInt32(11)));
         return items;
     }
 

@@ -128,7 +128,7 @@ public class DownloadService
 
                     var (filename, completedFilePath) = result.Value;
 
-                    await provider.CompleteAsync(id, url, filename, completedFilePath);
+                    await provider.CompleteAsync(id, url, filename, completedFilePath, format);
                     await Emit(new DownloadCompletedEvent(url, filename, completedFilePath));
                     _log.LogInformation("Downloaded {Filename} -> completed/", filename);
 

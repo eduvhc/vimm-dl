@@ -41,7 +41,7 @@ static class FileEndpoints
                     item.Title, item.Platform, item.Size,
                     fileExists, fileSize,
                     trace,
-                    item.CompletedAt);
+                    item.CompletedAt, item.Format);
             }).ToList();
 
             return new DataResponse(await repo.GetQueuedItemsAsync(), history,

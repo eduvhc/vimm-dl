@@ -16,13 +16,13 @@ record HistoryItem(int Id, string Url, string Filename, string? Filepath,
     string? Title, string? Platform, string? Size,
     bool FileExists, long? FileSize,
     PipelineTrace? Trace,
-    string? CompletedAt);
+    string? CompletedAt, int? Format);
 record QueueListResponse(List<QueueIdRow> Queued);
 record QueueIdRow(int Id, string Url, int Format);
 record QueuedItem(int Id, string Url, int Format, string? Title, string? Platform, string? Size, string? Formats);
 record CompletedItem(int Id, string Url, string Filename, string? Filepath,
     string? CompletedAt = null, string? Title = null, string? Platform = null, string? Size = null,
-    string? ConvPhase = null, string? ConvMessage = null, string? IsoFilename = null);
+    string? ConvPhase = null, string? ConvMessage = null, string? IsoFilename = null, int? Format = null);
 record MetaResponse(string Title, string Platform, string Size, string? Formats, string? Serial);
 record FormatOption(int Value, string Label, string Title, string Size);
 record PartialFile(string Name, long Bytes, double Mb);

@@ -10,9 +10,9 @@ class QueueItemProvider(QueueRepository repo) : IDownloadItemProvider
         return new DownloadItem(id, url, format);
     }
 
-    public async Task CompleteAsync(int id, string url, string filename, string filepath)
+    public async Task CompleteAsync(int id, string url, string filename, string filepath, int format)
     {
-        await repo.CompleteItemAsync(id, url, filename, filepath);
+        await repo.CompleteItemAsync(id, url, filename, filepath, format);
     }
 
     public async Task RemoveAsync(int id)

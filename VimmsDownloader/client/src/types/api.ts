@@ -54,6 +54,7 @@ export interface HistoryItem {
   fileSize: number | null
   trace: PipelineTrace | null
   completedAt: string | null
+  format: number | null
 }
 
 export interface MetaResponse {

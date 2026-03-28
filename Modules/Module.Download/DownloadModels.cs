@@ -10,6 +10,6 @@ public record DownloadItem(int Id, string Url, int Format);
 public interface IDownloadItemProvider
 {
     Task<DownloadItem?> GetNextAsync();
-    Task CompleteAsync(int id, string url, string filename, string filepath);
+    Task CompleteAsync(int id, string url, string filename, string filepath, int format);
     Task RemoveAsync(int id);
 }

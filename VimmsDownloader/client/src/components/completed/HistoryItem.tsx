@@ -23,10 +23,9 @@ const pipelineLabels: Record<string, string> = {
   none: 'Not converted',
 }
 
-function formatLabel(pipelineType: string): string {
-  if (pipelineType === 'jb_folder') return '0 — JB Folder (.7z)'
-  if (pipelineType === 'dec_iso') return '1 — .dec.iso'
-  if (pipelineType === 'dec_iso_archive') return '1 — .dec.iso (from archive)'
+function formatLabel(format: number | null): string {
+  if (format === 0) return '0 — JB Folder (.7z)'
+  if (format != null && format > 0) return `${format} — .dec.iso`
   return '—'
 }
 
@@ -193,11 +192,9 @@ export function HistoryItem({ item, showEventsLink, onViewEvents }: HistoryItemP
         <div className="px-3 sm:px-5 pb-3 pt-1 border-t border-border/10 bg-surface/20 space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
             {item.platform && <MetaRow label="Platform" value={item.platform} />}
+            {item.format != null && <MetaRow label="Format" value={formatLabel(item.format)} />}
             {trace && trace.pipelineType !== 'none' && (
-              <>
-                <MetaRow label="Pipeline" value={pipelineLabels[trace.pipelineType] ?? trace.pipelineType} />
-                <MetaRow label="Format" value={formatLabel(trace.pipelineType)} />
-              </>
+              <MetaRow label="Pipeline" value={pipelineLabels[trace.pipelineType] ?? trace.pipelineType} />
             )}
             <MetaRow label="Archive" value={item.filename} />
             {trace?.isoFilename && <MetaRow label="ISO" value={trace.isoFilename} />}
