@@ -62,29 +62,49 @@ export function EventItem({ event: e }: { event: EventRow }) {
 
   return (
     <div className="border-b border-border/10 hover:bg-card-hover/30 transition-colors">
+      {/* Desktop: single row */}
       <div
-        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-1.5 cursor-pointer"
+        className="hidden sm:flex items-center gap-3 px-5 py-1.5 cursor-pointer"
         onClick={() => setExpanded(v => !v)}
       >
-        <span className="hidden sm:inline text-[10px] font-mono text-text-4 w-28 shrink-0 tabular-nums">
+        <span className="text-[10px] font-mono text-text-4 w-28 shrink-0 tabular-nums">
           {formatTimestamp(e.timestamp)}
         </span>
-
-        <div className="w-16 sm:w-20 shrink-0">
+        <div className="w-20 shrink-0">
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
-
-        <span className="text-[11px] text-text-3 sm:w-44 shrink-0 truncate min-w-0 flex-1 sm:flex-none" title={e.itemName}>
+        <span className="text-[11px] text-text-3 w-44 shrink-0 truncate" title={e.itemName}>
           {e.itemName}
         </span>
-
-        <span className="hidden sm:inline text-[11px] text-text-4 truncate flex-1">
+        <span className="text-[11px] text-text-4 truncate flex-1">
           {e.message}
         </span>
-
-        <span className={`text-[10px] text-text-4/50 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}>
+        <span className={`text-[10px] text-text-4/50 transition-transform ${expanded ? 'rotate-90' : ''}`}>
           &#9654;
         </span>
+      </div>
+
+      {/* Mobile: two-line card */}
+      <div
+        className="sm:hidden px-3 py-2 cursor-pointer space-y-1"
+        onClick={() => setExpanded(v => !v)}
+      >
+        <div className="flex items-center gap-2">
+          <Badge variant={badge.variant}>{badge.label}</Badge>
+          <span className="text-[11px] text-text-3 truncate flex-1">{e.itemName}</span>
+          <span className={`text-[10px] text-text-4/50 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}>
+            &#9654;
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-text-4">
+          <span className="font-mono tabular-nums shrink-0">{formatTimestamp(e.timestamp)}</span>
+          {e.message && (
+            <>
+              <span className="text-border-light/40">&middot;</span>
+              <span className="truncate">{e.message}</span>
+            </>
+          )}
+        </div>
       </div>
 
       {expanded && (

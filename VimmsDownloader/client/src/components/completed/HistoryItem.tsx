@@ -47,7 +47,6 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
   const title = item.title || item.filename
   const trace = item.trace
 
-  // Overall status from last step
   const lastStep = trace?.steps.at(-1)
   const overallStatus = lastStep?.status ?? (item.fileExists ? 'none' : 'missing')
 
@@ -66,23 +65,67 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
     overallStatus === 'pending' ? 'Queued' :
     item.fileExists ? 'Downloaded' : 'Missing'
 
+  const badge = trace
+    ? <Badge variant={overallBadge}>{overallText}</Badge>
+    : <Badge variant={item.fileExists ? 'queued' : 'error'}>{item.fileExists ? 'Downloaded' : 'Missing'}</Badge>
+
   return (
     <div className="group border-b border-border/20 hover:bg-card-hover/40 transition-all">
-      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-2.5">
-        <PlatformIcon platform={item.platform} />
+      <div className="px-3 sm:px-5 py-2 sm:py-2.5">
+        {/* Desktop: single row */}
+        <div className="hidden sm:flex items-center gap-3">
+          <PlatformIcon platform={item.platform} />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-text truncate">{title}</div>
+            <div className="flex items-center gap-2 text-[10px] text-text-4">
+              <span className="truncate font-mono">{item.filename}</span>
+              {item.completedAt && <span>&middot; {item.completedAt}</span>}
+            </div>
+            {trace && trace.steps.length > 0 && (
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {trace.steps.map((step, i) => (
+                  <div key={step.name} className="flex items-center gap-2">
+                    {i > 0 && <span className="text-text-4/40">&rarr;</span>}
+                    <StepIndicator step={step} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {trace?.isoFilename && overallStatus === 'done' && (
+              <div className="flex items-center gap-1 text-[10px] text-ps-triangle/70 mt-0.5">
+                <span>&#10003;</span>
+                <span className="truncate font-mono">{trace.isoFilename}</span>
+                {trace.isoSize != null && <span>({fmtBytes(trace.isoSize)})</span>}
+              </div>
+            )}
+            {overallStatus === 'error' && lastStep?.message && (
+              <div className="text-[10px] text-ps-circle/70 mt-0.5 truncate">{lastStep.message}</div>
+            )}
+          </div>
+          <span className="text-[11px] font-mono text-text-3 w-16 text-right tabular-nums">
+            {item.fileSize ? fmtBytes(item.fileSize) : item.size || '--'}
+          </span>
+          {badge}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Actions trace={trace} item={item} convertMutation={convertMutation}
+              actionMutation={actionMutation} onDelete={() => setConfirmDelete(v => !v)} />
+          </div>
+        </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-text truncate">{title}</div>
-          <div className="flex items-center gap-2 text-[10px] text-text-4">
-            <span className="truncate font-mono">{item.filename}</span>
-            {item.completedAt && <span>&middot; {item.completedAt}</span>}
+        {/* Mobile: stacked layout */}
+        <div className="sm:hidden space-y-1.5">
+          <div className="flex items-start gap-2">
+            <PlatformIcon platform={item.platform} />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-text truncate">{title}</div>
+              <div className="text-[10px] text-text-4 truncate font-mono">{item.filename}</div>
+            </div>
           </div>
 
-          {/* Trace steps */}
           {trace && trace.steps.length > 0 && (
-            <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {trace.steps.map((step, i) => (
-                <div key={step.name} className="flex items-center gap-2">
+                <div key={step.name} className="flex items-center gap-1.5">
                   {i > 0 && <span className="text-text-4/40">&rarr;</span>}
                   <StepIndicator step={step} />
                 </div>
@@ -90,76 +133,31 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
             </div>
           )}
 
-          {/* ISO output */}
           {trace?.isoFilename && overallStatus === 'done' && (
-            <div className="flex items-center gap-1 text-[10px] text-ps-triangle/70 mt-0.5">
+            <div className="flex items-center gap-1 text-[10px] text-ps-triangle/70">
               <span>&#10003;</span>
               <span className="truncate font-mono">{trace.isoFilename}</span>
-              {trace.isoSize != null && <span>({fmtBytes(trace.isoSize)})</span>}
             </div>
           )}
 
-          {/* Error message */}
           {overallStatus === 'error' && lastStep?.message && (
-            <div className="text-[10px] text-ps-circle/70 mt-0.5 truncate">
-              {lastStep.message}
+            <div className="text-[10px] text-ps-circle/70 truncate">{lastStep.message}</div>
+          )}
+
+          <div className="flex items-center gap-2">
+            {badge}
+            {item.completedAt && <span className="text-[10px] text-text-4">{item.completedAt}</span>}
+            <div className="flex items-center gap-1 ml-auto">
+              <Actions trace={trace} item={item} convertMutation={convertMutation}
+                actionMutation={actionMutation} onDelete={() => setConfirmDelete(v => !v)} />
             </div>
-          )}
-        </div>
-
-        <span className="hidden sm:inline text-[11px] font-mono text-text-3 w-16 text-right tabular-nums">
-          {item.fileSize ? fmtBytes(item.fileSize) : item.size || '--'}
-        </span>
-
-        {trace ? (
-          <Badge variant={overallBadge}>{overallText}</Badge>
-        ) : (
-          <Badge variant={item.fileExists ? 'queued' : 'error'}>
-            {item.fileExists ? 'Downloaded' : 'Missing'}
-          </Badge>
-        )}
-
-        {/* Actions — always visible on touch */}
-        <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-          {trace?.actions.includes('convert') && (
-            <button onClick={() => convertMutation.mutate(item.filename)}
-              className="text-[10px] px-1.5 py-0.5 rounded text-ps-cross/60 hover:text-[#7eb3e0]
-                hover:bg-ps-cross/10 transition-colors">
-              Convert
-            </button>
-          )}
-          {trace?.actions.includes('mark-done') && (
-            <button onClick={() => actionMutation.mutate({ filename: item.filename, action: 'mark-done' })}
-              className="text-[10px] px-1.5 py-0.5 rounded text-text-4 hover:text-text-2
-                hover:bg-surface-3/40 transition-colors">
-              Mark Done
-            </button>
-          )}
-          {trace?.actions.includes('retry') && (
-            <button onClick={() => convertMutation.mutate(item.filename)}
-              className="text-[10px] px-1.5 py-0.5 rounded text-amber/60 hover:text-amber
-                hover:bg-amber/10 transition-colors">
-              Retry
-            </button>
-          )}
-          {trace?.actions.includes('abort') && (
-            <button onClick={() => actionMutation.mutate({ filename: item.filename, action: 'abort' })}
-              className="text-[10px] px-1.5 py-0.5 rounded text-ps-circle/60 hover:text-ps-circle
-                hover:bg-ps-circle/10 transition-colors">
-              Abort
-            </button>
-          )}
-          <button onClick={() => setConfirmDelete(v => !v)}
-            className="w-6 h-6 flex items-center justify-center rounded
-              text-ps-circle/30 hover:text-ps-circle hover:bg-ps-circle/10 text-xs"
-            title="Remove">&times;</button>
+          </div>
         </div>
       </div>
 
-      {/* Inline delete confirmation */}
       {confirmDelete && (
-        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 bg-ps-circle/5 border-t border-ps-circle/10 flex-wrap">
-          <span className="text-[10px] text-text-3">Remove this entry?</span>
+        <div className="flex items-center gap-2 px-3 sm:px-5 py-2 bg-ps-circle/5 border-t border-ps-circle/10 flex-wrap">
+          <span className="text-[10px] text-text-3">Remove?</span>
           <button
             onClick={() => { deleteMutation.mutate({ id: item.id }); setConfirmDelete(false) }}
             className="text-[10px] px-2 py-0.5 rounded bg-surface-3/50 text-text-3
@@ -182,5 +180,42 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
         </div>
       )}
     </div>
+  )
+}
+
+function Actions({ trace, item, convertMutation, actionMutation, onDelete }: {
+  trace: HistoryItemType['trace']
+  item: HistoryItemType
+  convertMutation: ReturnType<typeof useConvertPs3>
+  actionMutation: ReturnType<typeof usePs3Action>
+  onDelete: () => void
+}) {
+  return (
+    <>
+      {trace?.actions.includes('convert') && (
+        <button onClick={() => convertMutation.mutate(item.filename)}
+          className="text-[10px] px-1.5 py-0.5 rounded text-ps-cross/60 hover:text-[#7eb3e0]
+            hover:bg-ps-cross/10 transition-colors">Convert</button>
+      )}
+      {trace?.actions.includes('mark-done') && (
+        <button onClick={() => actionMutation.mutate({ filename: item.filename, action: 'mark-done' })}
+          className="text-[10px] px-1.5 py-0.5 rounded text-text-4 hover:text-text-2
+            hover:bg-surface-3/40 transition-colors">Done</button>
+      )}
+      {trace?.actions.includes('retry') && (
+        <button onClick={() => convertMutation.mutate(item.filename)}
+          className="text-[10px] px-1.5 py-0.5 rounded text-amber/60 hover:text-amber
+            hover:bg-amber/10 transition-colors">Retry</button>
+      )}
+      {trace?.actions.includes('abort') && (
+        <button onClick={() => actionMutation.mutate({ filename: item.filename, action: 'abort' })}
+          className="text-[10px] px-1.5 py-0.5 rounded text-ps-circle/60 hover:text-ps-circle
+            hover:bg-ps-circle/10 transition-colors">Abort</button>
+      )}
+      <button onClick={onDelete}
+        className="w-6 h-6 flex items-center justify-center rounded
+          text-ps-circle/30 hover:text-ps-circle hover:bg-ps-circle/10 text-xs"
+        title="Remove">&times;</button>
+    </>
   )
 }
