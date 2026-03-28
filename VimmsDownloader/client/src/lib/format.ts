@@ -47,6 +47,15 @@ export function parseUrls(text: string): string[] {
   return [...new Set(matches)]
 }
 
+export function fmtDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  const s = ms / 1000
+  if (s < 60) return `${s.toFixed(1)}s`
+  const m = Math.floor(s / 60)
+  const rem = s % 60
+  return `${m}m ${rem.toFixed(0)}s`
+}
+
 export function slugFromUrl(url: string): string {
   const parts = url.replace(/\/$/, '').split('/')
   return decodeURIComponent(parts[parts.length - 1] || url)

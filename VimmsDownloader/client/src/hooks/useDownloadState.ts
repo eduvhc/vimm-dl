@@ -11,6 +11,7 @@ export interface DownloadState {
   activeUrl: string | null
   activeDlInfo: ParsedProgress | null
   convStatuses: Record<string, Ps3IsoStatusEvent>
+  convStartTimes: Record<string, number>
   syncCopying: Record<string, SyncProgressEvent>
   connectionState: ConnectionState
   errors: string[]
@@ -22,6 +23,7 @@ export const initialState: DownloadState = {
   activeUrl: null,
   activeDlInfo: null,
   convStatuses: {},
+  convStartTimes: {},
   syncCopying: {},
   connectionState: 'disconnected',
   errors: [],
@@ -59,7 +61,12 @@ export function downloadReducer(state: DownloadState, action: DownloadAction): D
 
     case 'CONV_STATUS': {
       const next = { ...state.convStatuses, [action.payload.itemName]: action.payload }
-      return { ...state, convStatuses: next }
+      const prev = state.convStatuses[action.payload.itemName]
+      const starts = { ...state.convStartTimes }
+      // Track phase start time for elapsed display
+      if (!prev || prev.phase !== action.payload.phase)
+        starts[action.payload.itemName] = Date.now()
+      return { ...state, convStatuses: next, convStartTimes: starts }
     }
 
     case 'SYNC_PROGRESS': {

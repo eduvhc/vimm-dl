@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useDeleteCompleted, useConvertPs3, usePs3Action } from '../../api/queries'
 import { Badge } from '../shared/Badge'
 import { PlatformIcon } from '../shared/PlatformIcon'
-import { fmtBytes } from '../../lib/format'
+import { fmtBytes, fmtDuration } from '../../lib/format'
 import type { HistoryItem as HistoryItemType, TraceStep } from '../../types/api'
 
 type BadgeVariant = 'downloading' | 'paused' | 'queued' | 'starting' |
@@ -25,6 +25,12 @@ function StepIndicator({ step }: { step: TraceStep }) {
   return (
     <div className="flex items-center gap-1.5">
       <Badge variant={variant}>{icon}{step.name}</Badge>
+      {step.durationMs != null && step.status === 'done' && (
+        <span className="text-[10px] font-mono text-text-4/60">{fmtDuration(step.durationMs)}</span>
+      )}
+      {step.durationMs != null && step.status === 'active' && (
+        <span className="text-[10px] font-mono text-accent/50">{fmtDuration(step.durationMs)}</span>
+      )}
       {step.status === 'active' && step.message && (
         <span className="text-[10px] text-text-4 truncate max-w-48">{step.message}</span>
       )}
@@ -62,7 +68,7 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
 
   return (
     <div className="group border-b border-border/20 hover:bg-card-hover/40 transition-all">
-      <div className="flex items-center gap-3 px-5 py-2.5">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-2.5">
         <PlatformIcon platform={item.platform} />
 
         <div className="flex-1 min-w-0">
@@ -74,7 +80,7 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
 
           {/* Trace steps */}
           {trace && trace.steps.length > 0 && (
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
               {trace.steps.map((step, i) => (
                 <div key={step.name} className="flex items-center gap-2">
                   {i > 0 && <span className="text-text-4/40">&rarr;</span>}
@@ -101,7 +107,7 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
           )}
         </div>
 
-        <span className="text-[11px] font-mono text-text-3 w-16 text-right tabular-nums">
+        <span className="hidden sm:inline text-[11px] font-mono text-text-3 w-16 text-right tabular-nums">
           {item.fileSize ? fmtBytes(item.fileSize) : item.size || '--'}
         </span>
 
@@ -113,8 +119,8 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
           </Badge>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Actions — always visible on touch */}
+        <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           {trace?.actions.includes('convert') && (
             <button onClick={() => convertMutation.mutate(item.filename)}
               className="text-[10px] px-1.5 py-0.5 rounded text-ps-cross/60 hover:text-[#7eb3e0]
@@ -152,7 +158,7 @@ export function HistoryItem({ item }: { item: HistoryItemType }) {
 
       {/* Inline delete confirmation */}
       {confirmDelete && (
-        <div className="flex items-center gap-3 px-5 py-2 bg-ps-circle/5 border-t border-ps-circle/10">
+        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 bg-ps-circle/5 border-t border-ps-circle/10 flex-wrap">
           <span className="text-[10px] text-text-3">Remove this entry?</span>
           <button
             onClick={() => { deleteMutation.mutate({ id: item.id }); setConfirmDelete(false) }}

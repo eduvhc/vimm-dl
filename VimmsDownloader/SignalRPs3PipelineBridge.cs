@@ -7,13 +7,13 @@ class SignalRPs3PipelineBridge(IHubContext<DownloadHub> hub, QueueRepository rep
 {
     public async Task SendAsync(PipelineStatusEvent evt)
     {
-        // 1. Append ALL events to event log
+        // 1. Append ALL events to event log (with correlation ID)
         try
         {
             var data = evt.OutputFilename != null
                 ? $"{{\"outputFilename\":\"{EscapeJson(evt.OutputFilename)}\"}}"
                 : null;
-            await repo.AppendEventAsync(evt.ItemName, "pipeline_status", evt.Phase, evt.Message, data);
+            await repo.AppendEventAsync(evt.ItemName, "pipeline_status", evt.Phase, evt.Message, data, evt.CorrelationId);
         }
         catch { }
 

@@ -40,11 +40,10 @@ COPY --from=ps3tools /usr/local/bin/makeps3iso /usr/local/bin/
 COPY --from=ps3tools /usr/local/bin/patchps3iso /usr/local/bin/
 COPY --from=build /app .
 
-VOLUME /app/data
-VOLUME /downloads
+VOLUME /vimms
 
 ENV ASPNETCORE_URLS=http://+:5000
-ENV ConnectionStrings__Default="Data Source=/app/data/queue.db"
+ENV ConnectionStrings__Default="Data Source=/vimms/data/queue.db"
 
 EXPOSE 5000
 

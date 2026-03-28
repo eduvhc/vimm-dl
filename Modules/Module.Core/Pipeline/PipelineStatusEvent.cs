@@ -9,5 +9,6 @@ public record PipelineStatusEvent(
     string ItemName,
     string Phase,
     string Message,
-    string? OutputFilename = null
+    string? OutputFilename = null,
+    string? CorrelationId = null
 );

@@ -43,11 +43,11 @@ export function EventsPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-6 py-2 bg-surface/30 border-b border-border/20">
-        <span className="text-[10px] text-text-4 tracking-wide uppercase">
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 bg-surface/30 border-b border-border/20">
+        <span className="text-[10px] text-text-4 tracking-wide uppercase shrink-0">
           {events.length} of {total} events
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
           {visibleFilters.map(f => (
             <button
               key={f.value}

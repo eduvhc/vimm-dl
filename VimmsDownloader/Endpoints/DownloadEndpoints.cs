@@ -3,16 +3,58 @@ static class DownloadEndpoints
     public static void MapDownloadEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/queue", async (AddRequest req, QueueRepository repo,
-            IServiceProvider services, ILogger<QueueRepository> logger) =>
+            DownloadQueue queue, IServiceProvider services, ILogger<QueueRepository> logger) =>
         {
             var urls = req.Urls;
+
+            if (!req.Force && urls.Count > 0)
+            {
+                var dbMatches = await repo.CheckDuplicatesAsync(urls);
+                if (dbMatches.Count > 0)
+                {
+                    var completedDir = Path.Combine(queue.GetBasePath(), "completed");
+                    var duplicates = new List<DuplicateInfo>();
+
+                    foreach (var m in dbMatches)
+                    {
+                        if (m.Source == "queued")
+                        {
+                            duplicates.Add(new DuplicateInfo(m.Url, "queued", "Already in download queue",
+                                m.Title, null, null, false, false));
+                            continue;
+                        }
+
+                        // Delegate to pipeline — each console defines its own duplicate rules
+                        var pipeline = queue.GetPipeline(m.Platform);
+                        if (pipeline != null)
+                        {
+                            var result = pipeline.CheckDuplicate(completedDir, m.Filename, m.IsoFilename, m.ConvPhase);
+                            if (result == null) continue;
+                            duplicates.Add(new DuplicateInfo(m.Url, "completed", result.Reason,
+                                m.Title, m.Filename, m.IsoFilename, result.ArchiveExists, result.IsoExists));
+                        }
+                        else
+                        {
+                            // Generic fallback for non-pipeline platforms
+                            var archiveExists = m.Filename != null && File.Exists(Path.Combine(completedDir, m.Filename));
+                            if (!archiveExists) continue;
+                            duplicates.Add(new DuplicateInfo(m.Url, "completed", "Already downloaded",
+                                m.Title, m.Filename, null, archiveExists, false));
+                        }
+                    }
+
+                    if (duplicates.Count > 0)
+                        return Results.Ok(new AddResponse(null, duplicates));
+                }
+            }
+
             foreach (var url in urls)
                 await repo.AddToQueueAsync(url, req.Format ?? 0);
 
             if (urls.Count > 0)
                 MetadataFetcher.FetchInBackground(urls, services, logger);
 
-            return Results.Ok(new QueueListResponse(await repo.GetQueueIdsAsync()));
+            return Results.Ok(new AddResponse(await repo.GetQueueIdsAsync(), null));
         });
 
         app.MapDelete("/api/queue/{id:int}", async (int id, QueueRepository repo) =>
@@ -100,4 +142,5 @@ static class DownloadEndpoints
             return Results.Ok(new QueueImportResponse(added, skipped));
         });
     }
+
 }

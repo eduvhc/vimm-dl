@@ -25,7 +25,7 @@ export function SyncFileRow({ file, status }: SyncFileRowProps) {
     status === 'synced' ? 'SYNCED' : 'TARGET'
 
   return (
-    <div className="flex items-center gap-3 px-5 py-1.5 border-b border-border/15
+    <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-1.5 border-b border-border/15
       hover:bg-card-hover/30 transition-all">
       <span className={`text-[10px] font-medium w-14 tracking-wide ${statusColor}`}>
         {statusLabel}

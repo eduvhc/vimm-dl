@@ -22,7 +22,7 @@ export function SyncPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-6 py-2.5 bg-surface/30 border-b border-border/20">
+      <div className="flex items-center gap-2 px-3 sm:px-6 py-2.5 bg-surface/30 border-b border-border/20 flex-wrap">
         <input
           type="text"
           value={path}
@@ -54,20 +54,20 @@ export function SyncPanel() {
       </div>
 
       {syncData?.error && (
-        <div className="mx-6 mt-2 p-2 bg-ps-circle/8 border border-ps-circle/20 rounded text-xs text-[#e06070]">
+        <div className="mx-3 sm:mx-6 mt-2 p-2 bg-ps-circle/8 border border-ps-circle/20 rounded text-xs text-[#e06070]">
           {syncData.error}
         </div>
       )}
 
       {syncData && (syncData.source || syncData.target) && (
-        <div className="flex gap-3 px-6 py-3">
+        <div className="flex flex-col sm:flex-row gap-3 px-3 sm:px-6 py-3">
           <SyncDiskCard label="Source" info={syncData.source} />
           <SyncDiskCard label="Target" info={syncData.target} />
         </div>
       )}
 
       {syncData && (
-        <div className="px-6 pb-2 text-[10px] text-text-3 tracking-wide">
+        <div className="px-3 sm:px-6 pb-2 text-[10px] text-text-3 tracking-wide">
           <span className="text-ps-triangle">{newFiles.length} new</span>
           {' · '}
           <span className="text-accent/60">{syncedFiles.length} synced</span>

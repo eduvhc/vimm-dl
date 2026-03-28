@@ -56,6 +56,13 @@ await repo.InitAsync(app.Configuration.GetConnectionString("Default"),
 // Prune old events (7-day retention, 50k max rows)
 await repo.PruneEventsAsync();
 
+// Ensure download subdirectories exist
+{
+    var dlBase = repo.GetDownloadPath();
+    Directory.CreateDirectory(Path.Combine(dlBase, "downloading"));
+    Directory.CreateDirectory(Path.Combine(dlBase, "completed"));
+}
+
 // Seed pipeline state from DB + clean up orphans
 {
     var dlBase = repo.GetDownloadPath();

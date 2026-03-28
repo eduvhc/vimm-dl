@@ -48,6 +48,8 @@ html, body, #root {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 /* XMB background gradient + subtle noise */
@@ -92,6 +94,15 @@ body {
 }
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Hide scrollbar for horizontal scroll areas on mobile */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* Smooth transitions for the XMB feel */

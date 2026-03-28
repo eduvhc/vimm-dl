@@ -3,6 +3,7 @@ export interface Ps3IsoStatusEvent {
   phase: string
   message: string
   outputFilename?: string
+  correlationId?: string
 }
 
 export interface SyncProgressEvent {

@@ -31,6 +31,7 @@ export interface TraceStep {
   name: string
   status: 'pending' | 'active' | 'done' | 'error' | 'skipped'
   message: string | null
+  durationMs: number | null
 }
 
 export interface PipelineTrace {
@@ -69,6 +70,22 @@ export interface VersionResponse {
   hasUpdate: boolean
   url: string | null
   changelog: string | null
+}
+
+export interface AddResponse {
+  queued: { id: number; url: string; format: number }[] | null
+  duplicates: DuplicateInfo[] | null
+}
+
+export interface DuplicateInfo {
+  url: string
+  source: 'queued' | 'completed'
+  reason: string
+  title: string | null
+  filename: string | null
+  isoFilename: string | null
+  archiveExists: boolean
+  isoExists: boolean
 }
 
 export interface QueueExportItem {
@@ -157,6 +174,7 @@ export interface EventRow {
   message: string | null
   data: string | null
   timestamp: string
+  correlationId: string | null
 }
 
 export interface EventsResponse {

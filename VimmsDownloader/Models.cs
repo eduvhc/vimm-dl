@@ -1,4 +1,7 @@
-record AddRequest(List<string> Urls, int? Format = null);
+record AddRequest(List<string> Urls, int? Format = null, bool Force = false);
+record AddResponse(List<QueueIdRow>? Queued, List<DuplicateInfo>? Duplicates);
+record DuplicateInfo(string Url, string Source, string Reason, string? Title, string? Filename, string? IsoFilename,
+    bool ArchiveExists, bool IsoExists);
 record QueuePatchRequest(string? Direction = null, int? Format = null);
 record QueueReorderRequest(List<int> Ids);
 
@@ -6,7 +9,7 @@ record VersionResponse(string Current, string? Latest, bool HasUpdate, string? U
 record DataResponse(List<QueuedItem> Queued, List<HistoryItem> History,
     bool IsRunning, bool IsPaused, string? CurrentFile, string? CurrentUrl,
     string? Progress, long TotalBytes, long DownloadedBytes);
-record TraceStep(string Name, string Status, string? Message);
+record TraceStep(string Name, string Status, string? Message, long? DurationMs = null);
 record PipelineTrace(string PipelineType, List<TraceStep> Steps, string? IsoFilename, long? IsoSize, List<string> Actions);
 
 record HistoryItem(int Id, string Url, string Filename, string? Filepath,
@@ -51,7 +54,7 @@ record Ps3ActionResponse(bool Success);
 record SyncCompareRequest(string Path);
 record SyncCopyRequest(string? Filename = null);
 
-record EventRow(int Id, string ItemName, string EventType, string? Phase, string? Message, string? Data, string Timestamp);
+record EventRow(int Id, string ItemName, string EventType, string? Phase, string? Message, string? Data, string Timestamp, string? CorrelationId);
 record EventsResponse(List<EventRow> Events, int Total);
 
 static class QueueLock

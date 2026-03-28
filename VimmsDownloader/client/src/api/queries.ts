@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
   DataResponse, VersionResponse, SettingsResponse, MetaResponse,
   QueueImportResponse, Ps3ConvertResponse, SyncCompareResponse, QueueExportItem,
-  EventsResponse, MetricsResponse,
+  EventsResponse, MetricsResponse, AddResponse,
 } from '../types/api'
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -66,11 +66,14 @@ export function useSaveSetting() {
 
 // --- Metadata ---
 
+const ONE_HOUR = 60 * 60 * 1000
+
 export function useVersion() {
   return useQuery({
     queryKey: ['version'],
     queryFn: () => fetchJson<VersionResponse>('/api/version'),
-    staleTime: Infinity,
+    staleTime: ONE_HOUR,
+    refetchInterval: ONE_HOUR,
   })
 }
 
@@ -88,9 +91,11 @@ export function useMeta(url: string | null) {
 export function useAddToQueue() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { urls: string[]; format?: number }) =>
-      postJson('/api/queue', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['data'] }),
+    mutationFn: (data: { urls: string[]; format?: number; force?: boolean }) =>
+      postJson<AddResponse>('/api/queue', data),
+    onSuccess: (data) => {
+      if (data?.queued) qc.invalidateQueries({ queryKey: ['data'] })
+    },
   })
 }
 

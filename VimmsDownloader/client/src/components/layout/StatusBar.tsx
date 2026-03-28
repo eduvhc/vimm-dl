@@ -10,7 +10,7 @@ export function StatusBar() {
   const downloading = state.running && !state.paused ? 1 : 0
 
   return (
-    <footer className="flex items-center justify-between px-6 py-1.5 bg-surface/60 border-t border-border/30
+    <footer className="flex items-center justify-between px-3 sm:px-6 py-1.5 bg-surface/60 border-t border-border/30
       text-[10px] text-text-4 tracking-wide">
       <div className="flex items-center gap-3">
         <span>{queued} queued</span>

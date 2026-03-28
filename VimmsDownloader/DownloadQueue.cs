@@ -1,3 +1,4 @@
+using Module.Core.Pipeline;
 using Module.Download;
 using Module.Ps3Pipeline;
 using Module.Ps3IsoTools;
@@ -34,6 +35,12 @@ class DownloadQueue
     public string GetBasePath() => _service.GetBasePath();
     public void Stop() => _service.Stop();
     public void Pause() => _service.Pause();
+
+    public IPipeline? GetPipeline(string? platform)
+    {
+        if (Module.Core.Platforms.IsPS3(platform)) return _ps3Pipeline;
+        return null;
+    }
 
     public async Task StartAsync(string? overridePath)
     {

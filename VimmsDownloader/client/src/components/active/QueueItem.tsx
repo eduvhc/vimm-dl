@@ -72,16 +72,16 @@ export function QueueItem({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`group flex items-center gap-3 px-5 py-2.5
+      className={`group flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-2.5
         border-b transition-all select-none
         ${isActive ? 'xmb-selected xmb-glow border-border/20' : 'border-border/20 hover:bg-card-hover/40'}
         ${isDragging ? 'opacity-30' : ''}
         ${isDragOver ? 'border-t-2 border-t-accent/50' : ''}
-        ${!isActive ? 'cursor-grab active:cursor-grabbing' : ''}
+        ${!isActive ? 'sm:cursor-grab sm:active:cursor-grabbing' : ''}
       `}
     >
-      {/* Drag handle — subtle dots */}
-      <div className={`flex flex-col gap-[3px] py-1 opacity-0 group-hover:opacity-40 transition-opacity
+      {/* Drag handle — subtle dots (hidden on mobile) */}
+      <div className={`hidden sm:flex flex-col gap-[3px] py-1 opacity-0 group-hover:opacity-40 transition-opacity
         ${isActive ? '!opacity-0' : ''}`}>
         <div className="flex gap-[3px]">
           <div className="w-[3px] h-[3px] rounded-full bg-text-4" />
@@ -110,7 +110,7 @@ export function QueueItem({
         <select
           value={item.format}
           onChange={handleFormatChange}
-          className="bg-surface-2/60 border border-border/40 text-text-3 text-[10px] rounded px-1.5 py-0.5
+          className="hidden sm:block bg-surface-2/60 border border-border/40 text-text-3 text-[10px] rounded px-1.5 py-0.5
             focus:outline-none focus:border-accent/30"
         >
           {formats.map(f => (
@@ -119,16 +119,16 @@ export function QueueItem({
         </select>
       )}
 
-      <span className="text-[11px] font-mono text-text-3 w-16 text-right tabular-nums">
+      <span className="hidden sm:inline text-[11px] font-mono text-text-3 w-16 text-right tabular-nums">
         {item.size || '--'}
       </span>
 
       {/* Speed */}
-      <span className="text-[10px] font-mono text-text-3 w-20 text-right tabular-nums">
+      <span className="hidden md:inline text-[10px] font-mono text-text-3 w-20 text-right tabular-nums">
         {isDownloading && state.activeDlInfo?.speed ? state.activeDlInfo.speed : ''}
       </span>
 
-      <div className="w-28">
+      <div className="hidden sm:block w-28">
         {(isDownloading && state.activeDlInfo) ? (
           <ProgressBar width={state.activeDlInfo.width} variant="download" />
         ) : isPaused && state.activeDlInfo ? (
@@ -138,8 +138,8 @@ export function QueueItem({
 
       <Badge variant={badgeVariant}>{badgeText}</Badge>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions — always visible on touch, hover-reveal on desktop */}
+      <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
         {isDownloading ? (
           <button
             onClick={handlePause}

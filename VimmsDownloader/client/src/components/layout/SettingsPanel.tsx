@@ -47,10 +47,10 @@ export function SettingsPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center px-6 py-2 bg-surface/30 border-b border-border/20">
+      <div className="flex items-center px-3 sm:px-6 py-2 bg-surface/30 border-b border-border/20">
         <span className="text-[10px] text-text-4 tracking-wide uppercase">Settings</span>
       </div>
-      <div className="px-6 py-5 overflow-y-auto">
+      <div className="px-3 sm:px-6 py-4 sm:py-5 overflow-y-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {/* PS3 */}
           <div>

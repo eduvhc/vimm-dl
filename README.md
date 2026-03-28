@@ -8,45 +8,50 @@ A self-hosted game preservation toolkit that automates downloading, converting, 
 
 ```bash
 docker run -d -p 5000:5000 \
-  -v vimm-data:/app/data \
-  -v ~/downloads:/downloads \
+  -v ~/vimm:/vimms \
   --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 ```
 
 Open **http://localhost:5000**, paste vault URLs, done.
 
-## Volumes
+## Volume
 
-| Volume | Type | Required | Purpose |
-|--------|------|----------|---------|
-| `/app/data` | Named volume | Yes | SQLite database (queue, metadata, events, settings). Use a named volume — bind mounts can conflict with SQLite WAL on some hosts |
-| `/downloads` | Bind mount | Yes | All files: `downloading/` (partial), `completed/` (archives + ISOs), `ps3_temp/` (auto-cleaned). Download path auto-detected when this volume is mounted |
-| `/sync-target` | Bind mount | No | External drive for Sync feature. Mount your USB/NAS path here, then set sync path to `/sync-target` in Settings |
+Everything lives under a single `/vimms` mount:
 
-> **Note:** Sync is in beta and needs more testing. Enable it in Settings under Feature Flags.
+```
+/vimms/
+├── data/          ← SQLite database (queue, metadata, events, settings)
+└── downloads/     ← All files: downloading/, completed/, ps3_temp/
+```
+
+| Path | Purpose |
+|------|---------|
+| `/vimms/data/` | Database — persists queue, history, settings, events |
+| `/vimms/downloads/` | Files — partial downloads, archives, ISOs, temp conversion |
+
+> **Important:** Without the volume mount, everything is lost on container update. See [UPDATE.md](UPDATE.md).
 
 **Examples:**
 
 ```bash
 # Linux / macOS
 docker run -d -p 5000:5000 \
-  -v vimm-data:/app/data \
-  -v ~/Downloads:/downloads \
+  -v ~/vimm:/vimms \
   --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 
 # With sync to external drive
 docker run -d -p 5000:5000 \
-  -v vimm-data:/app/data \
-  -v ~/Downloads:/downloads \
+  -v ~/vimm:/vimms \
   -v /mnt/usb/PS3ISO:/sync-target \
   --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 
 # Windows
 docker run -d -p 5000:5000 \
-  -v vimm-data:/app/data \
-  -v %USERPROFILE%\Downloads:/downloads \
+  -v %USERPROFILE%\vimm:/vimms \
   --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 ```
+
+> **Note:** Sync is in beta. Enable it in Settings under Feature Flags. The target drive must be bind-mounted (e.g., `/sync-target`).
 
 ## Features
 

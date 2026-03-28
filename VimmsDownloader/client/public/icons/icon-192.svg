@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="24" fill="#05080f"/>
+  <rect x="16" y="16" width="160" height="160" rx="16" fill="#0b1120" stroke="#1a2744" stroke-width="2"/>
+  <text x="96" y="116" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="96" fill="#5b9bd5">V</text>
+  <rect x="40" y="140" width="112" height="3" rx="1.5" fill="#5b9bd5" opacity="0.4"/>
+</svg>

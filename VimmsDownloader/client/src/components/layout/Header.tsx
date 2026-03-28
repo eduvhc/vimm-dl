@@ -8,7 +8,7 @@ export function Header() {
     state.connectionState === 'reconnecting' ? 'bg-amber' : 'bg-ps-circle'
 
   return (
-    <header className="xmb-glass flex items-center justify-between px-6 py-3 border-b border-border/50">
+    <header className="xmb-glass flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b border-border/50">
       <div className="flex items-center gap-4">
         {/* PS3-style logo mark */}
         <div className="flex items-center gap-1">

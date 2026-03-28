@@ -20,6 +20,16 @@ class QueueRepository
             var dbPath = configConnStr.Replace("Data Source=", "").Trim();
             var dbDir = Path.GetDirectoryName(dbPath);
             if (!string.IsNullOrEmpty(dbDir)) Directory.CreateDirectory(dbDir);
+
+            // Derive download path from DB location: data/ and downloads/ are siblings
+            // e.g., /vimms/data/queue.db → /vimms/downloads
+            var baseDir = Path.GetDirectoryName(dbDir);
+            if (!string.IsNullOrEmpty(baseDir))
+            {
+                var downloadsDir = Path.Combine(baseDir, "downloads");
+                Directory.CreateDirectory(downloadsDir);
+                _downloadPath = downloadsDir;
+            }
         }
 
         await using var db = await OpenAsync();
@@ -57,17 +67,10 @@ class QueueRepository
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static readonly string DefaultDownloadPath = DetectDownloadPath();
+    private string? _downloadPath;
 
-    private static string DetectDownloadPath()
-    {
-        // Docker: /downloads volume is the contract
-        if (Directory.Exists("/downloads")) return "/downloads";
-        // Bare metal: standard user downloads directory
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-    }
-
-    public string GetDownloadPath() => DefaultDownloadPath;
+    public string GetDownloadPath() => _downloadPath
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
 
     public async Task<string> GetSyncPathAsync() => await GetSettingAsync("sync_path") ?? "";
 
@@ -108,6 +111,78 @@ class QueueRepository
             items.Add(new QueueIdRow(r.GetInt32(0), r.GetString(1), r.GetInt32(2)));
         return items;
     }
+
+    public record DuplicateDbMatch(string Url, string Source, string? ConvPhase, string? Title, string? Filename, string? IsoFilename, string? Platform);
+
+    public async Task<List<DuplicateDbMatch>> CheckDuplicatesAsync(List<string> urls)
+    {
+        if (urls.Count == 0) return [];
+
+        var results = new List<DuplicateDbMatch>();
+        var normalized = urls.Select(u => u.ToLowerInvariant()).Distinct().ToList();
+        var placeholders = string.Join(",", normalized.Select((_, i) => $"$u{i}"));
+
+        await using var db = await OpenAsync();
+
+        // Check queued_urls
+        await using (var cmd = db.CreateCommand())
+        {
+            cmd.CommandText = $"""
+                SELECT DISTINCT q.url, m.title, m.platform
+                FROM queued_urls q LEFT JOIN url_meta m ON q.url = m.url
+                WHERE LOWER(q.url) IN ({placeholders})
+            """;
+            for (int i = 0; i < normalized.Count; i++)
+                cmd.Parameters.AddWithValue($"$u{i}", normalized[i]);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var url = r.GetString(0);
+                var title = r.IsDBNull(1) ? null : r.GetString(1);
+                var platform = r.IsDBNull(2) ? null : r.GetString(2);
+                results.Add(new DuplicateDbMatch(url, "queued", null, title, null, null, platform));
+            }
+        }
+
+        // Check completed_urls — pick best row per URL (done > active > null)
+        await using (var cmd = db.CreateCommand())
+        {
+            cmd.CommandText = $"""
+                SELECT c.url, c.conv_phase, c.iso_filename, c.filename, m.title, m.platform
+                FROM completed_urls c LEFT JOIN url_meta m ON c.url = m.url
+                WHERE LOWER(c.url) IN ({placeholders})
+            """;
+            for (int i = 0; i < normalized.Count; i++)
+                cmd.Parameters.AddWithValue($"$u{i}", normalized[i]);
+
+            var byUrl = new Dictionary<string, DuplicateDbMatch>(StringComparer.OrdinalIgnoreCase);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var url = r.GetString(0);
+                var phase = r.IsDBNull(1) ? null : r.GetString(1);
+                var iso = r.IsDBNull(2) ? null : r.GetString(2);
+                var filename = r.IsDBNull(3) ? null : r.GetString(3);
+                var title = r.IsDBNull(4) ? null : r.GetString(4);
+                var platform = r.IsDBNull(5) ? null : r.GetString(5);
+
+                if (!byUrl.TryGetValue(url, out var existing) || RankPhase(phase) > RankPhase(existing.ConvPhase))
+                    byUrl[url] = new DuplicateDbMatch(url, "completed", phase, title, filename, iso, platform);
+            }
+
+            results.AddRange(byUrl.Values);
+        }
+
+        return results;
+    }
+
+    private static int RankPhase(string? phase) => phase switch
+    {
+        "done" => 3,
+        "error" => 1,
+        null => 0,
+        _ => 2,
+    };
 
     public async Task AddToQueueAsync(string url, int format)
     {
@@ -352,7 +427,7 @@ class QueueRepository
         // Rows
         await using var cmd = db.CreateCommand();
         var whereRows = BuildEventWhere(cmd, type, item);
-        cmd.CommandText = $"SELECT id, item_name, event_type, phase, message, data, timestamp FROM events{whereRows} ORDER BY id DESC LIMIT $limit OFFSET $offset";
+        cmd.CommandText = $"SELECT id, item_name, event_type, phase, message, data, timestamp, correlation_id FROM events{whereRows} ORDER BY id DESC LIMIT $limit OFFSET $offset";
         cmd.Parameters.AddWithValue("$limit", limit);
         cmd.Parameters.AddWithValue("$offset", offset);
 
@@ -364,7 +439,8 @@ class QueueRepository
                 r.IsDBNull(3) ? null : r.GetString(3),
                 r.IsDBNull(4) ? null : r.GetString(4),
                 r.IsDBNull(5) ? null : r.GetString(5),
-                r.GetString(6)));
+                r.GetString(6),
+                r.IsDBNull(7) ? null : r.GetString(7)));
         return new EventsResponse(events, total);
     }
 
@@ -419,20 +495,56 @@ class QueueRepository
         }
     }
 
-    public async Task AppendEventAsync(string itemName, string eventType, string? phase, string? message, string? data)
+    public async Task AppendEventAsync(string itemName, string eventType, string? phase, string? message, string? data, string? correlationId = null)
     {
         await using var db = await OpenAsync();
         await using var cmd = db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO events (item_name, event_type, phase, message, data, timestamp)
-            VALUES ($item, $type, $phase, $msg, $data, datetime('now'))
+            INSERT INTO events (item_name, event_type, phase, message, data, timestamp, correlation_id)
+            VALUES ($item, $type, $phase, $msg, $data, datetime('now'), $cid)
         """;
         cmd.Parameters.AddWithValue("$item", itemName);
         cmd.Parameters.AddWithValue("$type", eventType);
         cmd.Parameters.AddWithValue("$phase", (object?)phase ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$msg", (object?)message ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$data", (object?)data ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$cid", (object?)correlationId ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Get phase transitions with timestamps for a pipeline run.
+    /// Used to compute step durations in the trace.
+    /// </summary>
+    public async Task<List<(string Phase, string Timestamp)>> GetPipelineTimingsAsync(string itemName, string? correlationId)
+    {
+        await using var db = await OpenAsync();
+        await using var cmd = db.CreateCommand();
+
+        if (correlationId != null)
+        {
+            cmd.CommandText = """
+                SELECT phase, timestamp FROM events
+                WHERE correlation_id = $cid AND event_type = 'pipeline_status' AND phase IS NOT NULL
+                ORDER BY id
+            """;
+            cmd.Parameters.AddWithValue("$cid", correlationId);
+        }
+        else
+        {
+            cmd.CommandText = """
+                SELECT phase, timestamp FROM events
+                WHERE item_name = $item AND event_type = 'pipeline_status' AND phase IS NOT NULL
+                ORDER BY id
+            """;
+            cmd.Parameters.AddWithValue("$item", itemName);
+        }
+
+        var results = new List<(string, string)>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            results.Add((r.GetString(0), r.GetString(1)));
+        return results;
     }
 
     public async Task SaveConversionStateAsync(string filename, string phase, string message, string? isoFilename)
