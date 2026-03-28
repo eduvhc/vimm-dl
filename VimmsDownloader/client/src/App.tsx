@@ -1,4 +1,4 @@
-import { useState, useMemo, useReducer, useEffect } from 'react'
+import { useState, useMemo, useReducer, useEffect, useCallback } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Header } from './components/layout/Header'
 import { Toolbar } from './components/layout/Toolbar'
@@ -29,6 +29,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('active')
+  const [eventsItemFilter, setEventsItemFilter] = useState<string | null>(null)
   const [state, dispatch] = useReducer(downloadReducer, initialState)
   const connection = useSignalR(dispatch)
   const { data } = useData()
@@ -86,6 +87,13 @@ function AppContent() {
     if (hiddenTabs.has(activeTab)) setActiveTab('active')
   }, [hiddenTabs, activeTab])
 
+  const handleViewEvents = useCallback((itemName: string) => {
+    setEventsItemFilter(itemName)
+    setActiveTab('events')
+  }, [])
+
+  const eventsEnabled = !!settings?.featureEvents
+
   return (
     <DownloadContext.Provider value={{ state, dispatch, connection }}>
       <div className="flex flex-col h-screen bg-bg">
@@ -97,9 +105,19 @@ function AppContent() {
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} counts={counts} hiddenTabs={hiddenTabs} />
         <main className="flex-1 overflow-hidden">
           {activeTab === 'active' && <ActivePanel />}
-          {activeTab === 'completed' && <CompletedPanel />}
+          {activeTab === 'completed' && (
+            <CompletedPanel
+              showEventsLink={eventsEnabled}
+              onViewEvents={handleViewEvents}
+            />
+          )}
           {activeTab === 'metrics' && <MetricsPanel />}
-          {activeTab === 'events' && <EventsPanel />}
+          {activeTab === 'events' && (
+            <EventsPanel
+              itemFilter={eventsItemFilter}
+              onClearItemFilter={() => setEventsItemFilter(null)}
+            />
+          )}
           {activeTab === 'sync' && <SyncPanel />}
           {activeTab === 'settings' && <SettingsPanel />}
         </main>

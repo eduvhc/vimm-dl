@@ -1,7 +1,12 @@
 import { useData, useConvertPs3 } from '../../api/queries'
 import { HistoryItem } from './HistoryItem'
 
-export function CompletedPanel() {
+interface CompletedPanelProps {
+  showEventsLink?: boolean
+  onViewEvents?: (itemName: string) => void
+}
+
+export function CompletedPanel({ showEventsLink, onViewEvents }: CompletedPanelProps) {
   const { data } = useData()
   const convertAllMutation = useConvertPs3()
 
@@ -13,7 +18,6 @@ export function CompletedPanel() {
         <span className="text-[10px] text-text-4 tracking-wide uppercase">
           {history.length} completed
         </span>
-        {/* Cross = blue = action */}
         <button
           onClick={() => convertAllMutation.mutate(undefined)}
           disabled={convertAllMutation.isPending}
@@ -26,7 +30,8 @@ export function CompletedPanel() {
 
       <div className="flex-1 overflow-y-auto">
         {history.map(item => (
-          <HistoryItem key={item.id} item={item} />
+          <HistoryItem key={item.id} item={item}
+            showEventsLink={showEventsLink} onViewEvents={onViewEvents} />
         ))}
         {history.length === 0 && (
           <div className="flex items-center justify-center h-40 text-text-4 text-sm tracking-wide">

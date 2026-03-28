@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useEvents } from '../../api/queries'
 import { useSettings } from '../../api/queries'
 import { EventItem } from './EventItem'
@@ -21,11 +21,27 @@ const FILTERS: FilterDef[] = [
 
 const PAGE_SIZE = 100
 
-export function EventsPanel() {
+interface EventsPanelProps {
+  itemFilter?: string | null
+  onClearItemFilter?: () => void
+}
+
+export function EventsPanel({ itemFilter, onClearItemFilter }: EventsPanelProps) {
   const [filter, setFilter] = useState('')
+  const [itemSearch, setItemSearch] = useState('')
   const [limit, setLimit] = useState(PAGE_SIZE)
   const { data: settings } = useSettings()
-  const { data } = useEvents(filter || undefined, undefined, limit)
+
+  // Sync external item filter
+  useEffect(() => {
+    if (itemFilter) {
+      setItemSearch(itemFilter)
+      setLimit(PAGE_SIZE)
+    }
+  }, [itemFilter])
+
+  const activeItem = itemSearch || undefined
+  const { data } = useEvents(filter || undefined, activeItem, limit)
 
   const events = data?.events ?? []
   const total = data?.total ?? 0
@@ -41,27 +57,47 @@ export function EventsPanel() {
     setLimit(PAGE_SIZE)
   }
 
+  function handleClearItem() {
+    setItemSearch('')
+    onClearItemFilter?.()
+  }
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 bg-surface/30 border-b border-border/20">
-        <span className="text-[10px] text-text-4 tracking-wide uppercase shrink-0">
-          {events.length} of {total} events
-        </span>
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-          {visibleFilters.map(f => (
-            <button
-              key={f.value}
-              onClick={() => handleFilterChange(f.value)}
-              className={`px-2.5 py-1 text-[10px] tracking-wide uppercase rounded transition-colors ${
-                filter === f.value
-                  ? 'bg-accent/15 text-accent border border-accent/30'
-                  : 'text-text-4 hover:text-text-3 border border-transparent'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+      <div className="flex flex-col gap-2 px-3 sm:px-6 py-2 bg-surface/30 border-b border-border/20">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] text-text-4 tracking-wide uppercase shrink-0">
+            {events.length} of {total} events
+          </span>
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+            {visibleFilters.map(f => (
+              <button
+                key={f.value}
+                onClick={() => handleFilterChange(f.value)}
+                className={`px-2.5 py-1 text-[10px] tracking-wide uppercase rounded transition-colors whitespace-nowrap ${
+                  filter === f.value
+                    ? 'bg-accent/15 text-accent border border-accent/30'
+                    : 'text-text-4 hover:text-text-3 border border-transparent'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {itemSearch && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-text-4">Filtered by:</span>
+            <span className="text-[10px] font-mono text-accent/80 bg-accent/10 px-2 py-0.5 rounded border border-accent/20 truncate">
+              {itemSearch}
+            </span>
+            <button onClick={handleClearItem}
+              className="text-[10px] text-text-4 hover:text-text-2 transition-colors shrink-0">
+              &times; Clear
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -79,7 +115,7 @@ export function EventsPanel() {
         )}
         {events.length === 0 && (
           <div className="flex items-center justify-center h-40 text-text-4 text-sm tracking-wide">
-            No events recorded
+            {itemSearch ? `No events for "${itemSearch}"` : 'No events recorded'}
           </div>
         )}
       </div>
