@@ -264,6 +264,12 @@ docker pull ghcr.io/eduvhc/vimm-dl:latest
 docker run -d -p 5000:5000 -v ~/vimm:/vimms --name vimm-dl ghcr.io/eduvhc/vimm-dl:latest
 ```
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned features:
+- **Pipeline Identity** (next) — vault URL + format as item identity, replacing filename. Fixes cross-format duplicate detection and event correlation.
+- **Future Console Support** — architecture ready via `IPipeline`, waiting for demand.
+
 ## User Preferences
 
 - Keep it simple. Repository abstraction for DB. No EF Core, no Dapper.
